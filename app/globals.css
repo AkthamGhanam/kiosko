@@ -12,8 +12,8 @@
   --color-hoja: #5f7d3a;
   --color-oro: #e0a526;
 
-  --font-sans: var(--fuente-texto), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--fuente-titulo), ui-serif, Georgia, serif;
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
 
   --animate-onda: onda 1s ease-in-out infinite;
   --animate-punto: punto 1.2s ease-in-out infinite;

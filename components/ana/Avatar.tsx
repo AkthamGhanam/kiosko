@@ -97,7 +97,7 @@ export function Avatar() {
     // abajo queda tapado por los subtítulos: se desplaza el encuadre
     let alto = arriba - abajo;
     let dist = alto / 2 / tan;
-    const mediaAnchoNecesaria = 0.42;
+    const mediaAnchoNecesaria = aspecto < 1 && aspecto > 0.65 ? 0.55 : 0.42; // que quepa el brazo al saludar
     if (dist * tan * aspecto < mediaAnchoNecesaria) dist = mediaAnchoNecesaria / (tan * aspecto);
     alto = dist * tan * 2;
     const centroY = arriba - alto / 2;
