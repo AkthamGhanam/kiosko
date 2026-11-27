@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --color-crema: #faf5ec;
+  --color-crema-2: #f3eadb;
+  --color-arena: #e7dac4;
+  --color-tinta: #2a1d15;
+  --color-tinta-2: #5c4a3d;
+  --color-paprika: #c2462b;
+  --color-paprika-2: #a53620;
+  --color-canela: #8b5a2b;
+  --color-hoja: #5f7d3a;
+  --color-oro: #e0a526;
+
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
+
+  --animate-onda: onda 1s ease-in-out infinite;
+  --animate-punto: punto 1.2s ease-in-out infinite;
+}
+
+@keyframes onda {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+@keyframes punto {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-4px); }
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-crema);
+  color: var(--color-tinta);
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+.sin-scroll::-webkit-scrollbar {
+  display: none;
+}
+.sin-scroll {
+  scrollbar-width: none;
+}
+
+/* textura sutil de papel kraft en el fondo de la escena */
+.fondo-escena {
+  background:
+    radial-gradient(120% 80% at 50% 0%, #fffaf2 0%, #f6ecdc 55%, #ecdcc3 100%);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Pantalla vertical de kiosko (1080x1920): todo el diseño usa rem, así que
+   basta con agrandar la base para que botones y texto escalen juntos. */
+@media (orientation: portrait) and (min-width: 900px) {
+  html { font-size: 150%; }
+}
+@media (orientation: portrait) and (min-width: 700px) and (max-width: 899px) {
+  html { font-size: 125%; }
+}
