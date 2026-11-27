@@ -3,7 +3,7 @@ import { ConfirmarPedidoBody } from "@/lib/esquemas";
 import { confirmarPedido, numeroOrden } from "@/lib/pedidos";
 import { prisma } from "@/lib/db";
 import { frasePago } from "@/lib/config";
-import { dineroHablado } from "@/lib/dinero";
+import { formatoDinero } from "@/lib/dinero";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   if (!body.success) return NextResponse.json({ error: "Pedido inválido", detalle: body.error.flatten() }, { status: 400 });
   const r = await confirmarPedido(body.data.items, body.data.canal);
   if (!r.ok) return NextResponse.json(r, { status: 409 });
-  return NextResponse.json({ ...r, frase: frasePago(dineroHablado(r.factura.totalCents)) });
+  return NextResponse.json({ ...r, frase: frasePago(formatoDinero(r.factura.totalCents)) });
 }
 
 /** Últimos pedidos para el panel /admin. */
