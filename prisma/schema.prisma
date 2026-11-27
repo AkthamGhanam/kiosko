@@ -1,0 +1,74 @@
+// Base de datos del kiosko. SQLite para la demo; para Postgres cambia
+// provider a "postgresql" y DATABASE_URL, el resto del esquema es igual.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Producto {
+  id           Int                     @id @default(autoincrement())
+  slug         String                  @unique
+  nombre       String
+  /// Alias separados por coma: "dandy,mani dandy"
+  alias        String                  @default("")
+  categoria    String
+  /// Precio por kilogramo en centavos (evita errores de coma flotante)
+  precioKg     Int                     @map("precio_kg_centavos")
+  stockGramos  Int                     @map("stock_gramos")
+  imagen       String
+  activo       Boolean                 @default(true)
+  creadoEn     DateTime                @default(now()) @map("creado_en")
+  items        ItemPedido[]
+  movimientos  MovimientoInventario[]
+
+  @@map("productos")
+}
+
+model Pedido {
+  id          Int                    @id @default(autoincrement())
+  estado      String                 @default("confirmado")
+  /// voz | texto | tactil
+  canal       String                 @default("tactil")
+  totalCents  Int                    @map("total_centavos")
+  creadoEn    DateTime               @default(now()) @map("creado_en")
+  items       ItemPedido[]
+  movimientos MovimientoInventario[]
+
+  @@map("pedidos")
+}
+
+model ItemPedido {
+  id             Int      @id @default(autoincrement())
+  pedidoId       Int      @map("pedido_id")
+  productoId     Int      @map("producto_id")
+  nombreProducto String   @map("nombre_producto")
+  gramos         Int
+  precioKg       Int      @map("precio_kg_centavos")
+  subtotalCents  Int      @map("subtotal_centavos")
+  pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  producto       Producto @relation(fields: [productoId], references: [id])
+
+  @@map("items_pedido")
+}
+
+model MovimientoInventario {
+  id              Int      @id @default(autoincrement())
+  productoId      Int      @map("producto_id")
+  /// venta | reposicion | ajuste
+  tipo            String
+  /// Negativo en ventas, positivo en reposiciones
+  gramos          Int
+  stockResultante Int      @map("stock_resultante")
+  pedidoId        Int?     @map("pedido_id")
+  nota            String?
+  creadoEn        DateTime @default(now()) @map("creado_en")
+  producto        Producto @relation(fields: [productoId], references: [id])
+  pedido          Pedido?  @relation(fields: [pedidoId], references: [id])
+
+  @@index([productoId, creadoEn])
+  @@map("movimientos_inventario")
+}
