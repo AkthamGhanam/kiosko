@@ -35,6 +35,8 @@ export const AnaBody = z.object({
   carrito: Carrito.default([]),
   /** true si ANA ya pidió confirmación y espera un "sí" */
   esperandoConfirmacion: z.boolean().default(false),
+  /** productos que ANA sugirió (por una receta) y espera que el cliente acepte */
+  sugerencia: Carrito.default([]),
   canal: Canal.default("texto"),
 });
 export type AnaBody = z.infer<typeof AnaBody>;

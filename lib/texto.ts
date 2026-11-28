@@ -29,3 +29,36 @@ export function similitud(a: string, b: string): number {
   const max = Math.max(a.length, b.length) || 1;
   return 1 - levenshtein(a, b) / max;
 }
+
+/**
+ * Clave fonética para tolerar cómo se pronuncia y cómo lo transcribe el micrófono.
+ * Pensada para el español de Venezuela y para personas que no pronuncian la "r"
+ * (rotacismo y lambdacismo): "paprika", "papika" y "paplika" quedan muy cerca.
+ *  - rr/r/l se unifican en "l"; v=b; z/ce/ci=s; ll=y; h muda; qu/c(a,o,u)=k; y final = i
+ */
+export function fonetica(s: string): string {
+  return normalizar(s)
+    .replace(/h/g, "")
+    .replace(/rr/g, "r")
+    .replace(/[rl]+/g, "l")
+    .replace(/v/g, "b")
+    .replace(/z/g, "s")
+    .replace(/c([ei])/g, "s$1")
+    .replace(/qu([ei])/g, "k$1")
+    .replace(/c/g, "k")
+    .replace(/ll/g, "y")
+    .replace(/y\b/g, "i")
+    .replace(/(.)\1+/g, "$1");
+}
+
+/** Similitud que también compara la forma fonética y la palabra sin "r" ni "l". */
+export function similitudFlexible(a: string, b: string): number {
+  const directa = similitud(a, b);
+  if (directa === 1) return 1;
+  const fa = fonetica(a);
+  const fb = fonetica(b);
+  const fon = similitud(fa, fb);
+  // quien no pronuncia la r a veces la omite: "papika" por "paprika"
+  const sinL = similitud(fa.replace(/l/g, ""), fb.replace(/l/g, ""));
+  return Math.max(directa, fon * 0.98, sinL * 0.95);
+}

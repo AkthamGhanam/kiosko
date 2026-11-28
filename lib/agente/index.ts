@@ -4,8 +4,8 @@ import type { Producto } from "@prisma/client";
 import { completar, proveedoresActivos, type MensajeLLM } from "../llm";
 import { TIENDA, frasePago } from "../config";
 import { formatoDinero } from "../dinero";
-import { detectarIntencion } from "../interpretar";
-import { DEFINICIONES, confirmar_pedido, ejecutarHerramienta, ver_carrito, type Contexto } from "./herramientas";
+import { aceptaSugerencia, detectarIntencion } from "../interpretar";
+import { DEFINICIONES, agregar_sugerencia, confirmar_pedido, ejecutarHerramienta, ver_carrito, type Contexto } from "./herramientas";
 import { responderLocal } from "./local";
 import type { AnaBody } from "../esquemas";
 import type { Factura, LineaRechazada } from "../pedidos";
@@ -16,6 +16,9 @@ export type RespuestaAgente = {
   esperandoConfirmacion: boolean;
   factura?: Factura;
   rechazadas?: LineaRechazada[];
+  sugerencia: { productoId: number; gramos: number }[];
+  abrirMenu: boolean;
+  categoriaMenu?: string;
   proveedor: string;
 };
 
@@ -24,9 +27,11 @@ export function promptSistema(ctx: Contexto) {
   const catalogo = ctx.productos
     .map((p) => `${p.nombre}${p.alias ? ` (${p.alias.split(",").slice(0, 3).join(", ")})` : ""}`)
     .join("; ");
-  return `Eres ANA, la asistente virtual del kiosko de ${TIENDA.nombre}, una tienda de condimentos, maní y frutos secos que vende al peso.
+  return `Eres ANA, la asistente de ventas del kiosko de ${TIENDA.nombre}, una tienda de condimentos, maní y frutos secos que vende al peso.
 
-Personalidad: cálida, breve y clara. Español venezolano neutro, trato de "tú". Responde en 1 o 2 frases cortas, porque tus palabras se leen en voz alta. Sin emojis, sin listas, sin markdown.
+Personalidad: cálida, breve y clara, como una buena vendedora de mostrador. Español venezolano neutro, trato de "tú". Responde en 1 o 2 frases cortas, porque tus palabras se dicen en voz alta. Sin emojis, sin listas, sin markdown.
+
+Lo que dice el cliente viene de un micrófono y puede venir mal transcrito o con problemas de pronunciación (por ejemplo, alguien que no pronuncia la "r": "papika" es paprika, "oégano" es orégano, "meley" es merey, "pefecto" es perfecto). Interpreta con buena fe y pasa el nombre tal cual a las herramientas: ellas toleran esos errores.
 
 Reglas:
 - Nunca inventes productos, precios ni existencias. Para saber qué hay o cuánto cuesta, usa buscar_productos.
@@ -35,17 +40,20 @@ Reglas:
 - Si una herramienta reporta un problema (no existe, ambiguo o sin stock), explícalo y ofrece las opciones o alternativas que devolvió.
 - No digas totales ni precios que no vengan de una herramienta. El total se ve en pantalla.
 - Llama a confirmar_pedido solo cuando el cliente confirme un pedido que ya le mostraste. No digas los datos de pago: el sistema los agrega.
+- Asistente de ventas: si el cliente cuenta qué va a cocinar (hallacas, pan de jamón, torta negra, pollo al horno, una fiesta...), llama a sugerir_para_receta, recomiéndale esos productos con un consejo corto y pregúntale "¿Te los agrego?". Si acepta, llama a agregar_sugerencia.
+- Si no entiendes lo que pide, llama a abrir_menu y dile que puede tocar los productos en pantalla.
 - Si piden algo fuera de la tienda, redirige con amabilidad al pedido.
 
 Catálogo: ${catalogo}.
 Carrito actual: ${c.vacio ? "vacío" : c.lineas.map((l) => `${l.gramos} de ${l.producto}`).join(", ") + `; total ${c.total}`}.
-${ctx.confirmacionPermitida ? "Ya le pediste confirmación al cliente." : ""}`;
+${ctx.confirmacionPermitida ? "Ya le pediste confirmación al cliente." : ""}
+${ctx.sugerencia.length ? "Hay una sugerencia de receta esperando que el cliente la acepte." : ""}`;
 }
 
 async function conLLM(ctx: Contexto, body: AnaBody): Promise<{ texto: string; proveedor: string } | null> {
   const proveedores = proveedoresActivos();
   for (const p of proveedores) {
-    const respaldo = { carrito: [...ctx.carrito], esperando: ctx.esperandoConfirmacion };
+    const respaldo = { carrito: [...ctx.carrito], esperando: ctx.esperandoConfirmacion, sugerencia: [...ctx.sugerencia] };
     try {
       const mensajes: MensajeLLM[] = [
         { role: "system", content: promptSistema(ctx) },
@@ -69,6 +77,8 @@ async function conLLM(ctx: Contexto, body: AnaBody): Promise<{ texto: string; pr
       console.warn(`[ANA] ${p.id} falló, probando el siguiente:`, (e as Error).message);
       ctx.carrito = respaldo.carrito;
       ctx.esperandoConfirmacion = respaldo.esperando;
+      ctx.sugerencia = respaldo.sugerencia;
+      ctx.abrirMenu = false;
     }
   }
   return null;
@@ -81,6 +91,8 @@ export async function responder(body: AnaBody, productos: Producto[]): Promise<R
     esperandoConfirmacion: body.esperandoConfirmacion,
     confirmacionPermitida: body.esperandoConfirmacion && body.carrito.length > 0,
     canal: body.canal,
+    sugerencia: body.sugerencia.filter((i) => productos.some((p) => p.id === i.productoId)),
+    abrirMenu: false,
   };
 
   let texto = "";
@@ -88,7 +100,13 @@ export async function responder(body: AnaBody, productos: Producto[]): Promise<R
 
   // Atajo determinista: un "sí / confirmo / perfecto" a un pedido pendiente se cierra
   // sin pasar por la IA (más rápido y sin riesgo de que el modelo lo malinterprete).
-  if (ctx.confirmacionPermitida && detectarIntencion(body.mensaje, true) === "confirmar") {
+  const sinPedidoNuevo = detectarIntencion(body.mensaje, true) !== "pedido";
+  if (ctx.sugerencia.length && sinPedidoNuevo && aceptaSugerencia(body.mensaje)) {
+    // "sí, agrégalos": se agrega la sugerencia de la receta sin pasar por la IA
+    const r = agregar_sugerencia(ctx);
+    texto = r.agregados.length ? `Listo, te los agregué. El total va en ${r.carrito?.total}. ¿Te confirmo el pedido o quieres algo más?` : "Uy, ya no me queda stock de esos productos.";
+    proveedor = proveedoresActivos()[0]?.id ?? "local";
+  } else if (ctx.confirmacionPermitida && detectarIntencion(body.mensaje, true) === "confirmar") {
     await confirmar_pedido(ctx);
     proveedor = proveedoresActivos()[0]?.id ?? "local";
   } else {
@@ -114,6 +132,9 @@ export async function responder(body: AnaBody, productos: Producto[]): Promise<R
     esperandoConfirmacion: ctx.esperandoConfirmacion && ctx.carrito.length > 0,
     factura: ctx.factura,
     rechazadas: ctx.rechazadas,
+    sugerencia: ctx.factura ? [] : ctx.sugerencia,
+    abrirMenu: ctx.abrirMenu,
+    categoriaMenu: ctx.categoriaMenu,
     proveedor,
   };
 }

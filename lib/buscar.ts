@@ -1,6 +1,6 @@
 // Búsqueda difusa de productos por nombre y alias ("many" = maní, "paprica" = paprika).
 // Es pura: recibe la lista de productos, así se puede probar sin base de datos.
-import { normalizar, similitud } from "./texto";
+import { normalizar, similitudFlexible } from "./texto";
 
 export type ProductoBuscable = {
   id: number;
@@ -26,7 +26,7 @@ function tokens(s: string): string[] {
 
 function simToken(a: string, b: string): number {
   // "mani" frente a "many": se toleran errores pequeños
-  const s = similitud(a, b);
+  const s = similitudFlexible(a, b);
   if (a.length >= 4 && b.startsWith(a)) return Math.max(s, 0.9); // prefijo: "papri" -> "paprika"
   return s >= 0.7 ? s : 0;
 }
