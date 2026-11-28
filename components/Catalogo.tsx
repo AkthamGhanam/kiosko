@@ -5,6 +5,7 @@ import { useKiosko } from "@/lib/cliente/store";
 import type { ProductoCliente } from "@/lib/cliente/tipos";
 import { formatoDinero, formatoGramos } from "@/lib/dinero";
 import { SelectorGramos } from "./SelectorGramos";
+import { MIN_GRAMOS } from "@/lib/config";
 
 const TODAS = "Todo";
 
@@ -42,7 +43,7 @@ export function Catalogo() {
       <div className="sin-scroll grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-3 overflow-y-auto px-4 pb-4 landscape:grid-cols-3 landscape:xl:grid-cols-4">
         <AnimatePresence mode="popLayout">
           {visibles.map((p) => {
-            const agotado = p.stockGramos < 50;
+            const agotado = p.stockGramos < MIN_GRAMOS;
             const poco = !agotado && p.stockGramos < 500;
             const g = enCarrito.get(p.id);
             return (

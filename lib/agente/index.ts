@@ -2,7 +2,7 @@
 // claves o fallan, responde el intérprete local. El resultado siempre lo valida el servidor.
 import type { Producto } from "@prisma/client";
 import { completar, proveedoresActivos, type MensajeLLM } from "../llm";
-import { TIENDA, frasePago } from "../config";
+import { MIN_GRAMOS, TIENDA, frasePago } from "../config";
 import { formatoDinero } from "../dinero";
 import { aceptaSugerencia, detectarIntencion } from "../interpretar";
 import { INFO } from "../consejos";
@@ -40,6 +40,8 @@ Lo que dice el cliente viene de un micrófono y puede venir mal transcrito o con
 Reglas:
 - Nunca inventes productos, precios ni existencias. Para saber qué hay o cuánto cuesta, usa buscar_productos.
 - Para pedir, usa agregar_al_carrito con los gramos de cada producto. Un número solo son gramos.
+- Regla de la tienda: lo mínimo por producto son ${MIN_GRAMOS} gramos. Si piden menos, se ajusta a ${MIN_GRAMOS} g y se lo dices con amabilidad.
+- Ignora muletillas y titubeos del habla ("eh", "este", "deee", palabras alargadas): "dame 100 deee pasas" son 100 g de pasas.
 - Después de agregar, si todo salió bien di exactamente: "Perfecto, tu pedido está listo. ¿Me lo confirmas?".
 - Si una herramienta reporta un problema (no existe, ambiguo o sin stock), explícalo y ofrece las opciones o alternativas que devolvió.
 - No digas totales ni precios que no vengan de una herramienta. El total se ve en pantalla.

@@ -6,6 +6,7 @@ import { buscarProducto, puntuar } from "../buscar";
 import { RECETAS, detectarReceta } from "../recetas";
 import { cotizarCon, confirmarPedido, type Factura, type LineaRechazada } from "../pedidos";
 import { formatoDinero, formatoGramos } from "../dinero";
+import { MIN_GRAMOS } from "../config";
 import { MAX_GRAMOS_LINEA, type Canal, type ItemCarrito } from "../esquemas";
 
 export type Contexto = {
@@ -27,7 +28,7 @@ export type Contexto = {
 const ficha = (p: Producto) => ({
   nombre: p.nombre,
   precio_por_kg: formatoDinero(p.precioKg),
-  disponible: p.stockGramos >= 50 ? formatoGramos(p.stockGramos) : "agotado",
+  disponible: p.stockGramos >= MIN_GRAMOS ? formatoGramos(p.stockGramos) : "agotado",
 });
 
 export const ArgsBuscar = z.object({ consulta: z.string().min(1).max(100) });
@@ -63,11 +64,29 @@ function alternativas(ctx: Contexto, p: Producto, gramos: number) {
     .map((x) => x.nombre);
 }
 
+/**
+ * Al hablar la gente se corrige: "100 de cumo... comino". Si la frase completa no da un
+ * producto claro, se prueba con las últimas palabras ("comino").
+ */
+function buscarConCorreccion(texto: string, productos: Producto[]) {
+  const r = buscarProducto(texto, productos);
+  if (r.tipo === "exacto") return r;
+  const palabras = texto.trim().split(/\s+/);
+  for (let i = 1; i < palabras.length; i++) {
+    const otra = buscarProducto(palabras.slice(i).join(" "), productos);
+    if (otra.tipo === "exacto") return otra;
+  }
+  return r;
+}
+
 export function agregar_al_carrito(ctx: Contexto, args: z.infer<typeof ArgsAgregar>) {
   const agregados: { producto: string; gramos: string }[] = [];
   const problemas: Record<string, unknown>[] = [];
-  for (const it of args.items) {
-    const r = buscarProducto(it.producto, ctx.productos);
+  const ajustados: string[] = [];
+  for (const original of args.items) {
+    // regla de la tienda: lo mínimo son MIN_GRAMOS por producto
+    const it = original.gramos < MIN_GRAMOS ? { ...original, gramos: MIN_GRAMOS } : original;
+    const r = buscarConCorreccion(it.producto, ctx.productos);
     if (r.tipo === "ninguno") {
       problemas.push({ pedido: it.producto, problema: "no_existe", sugerencias: r.sugerencias.map((p) => p.nombre) });
       ctx.abrirMenu = true;
@@ -95,9 +114,15 @@ export function agregar_al_carrito(ctx: Contexto, args: z.infer<typeof ArgsAgreg
       ? ctx.carrito.map((i) => (i.productoId === p.id ? { ...i, gramos: i.gramos + it.gramos } : i))
       : [...ctx.carrito, { productoId: p.id, gramos: it.gramos }];
     agregados.push({ producto: p.nombre, gramos: formatoGramos(it.gramos) });
+    if (it !== original) ajustados.push(p.nombre);
   }
   if (ctx.carrito.length) ctx.esperandoConfirmacion = true;
-  return { agregados, problemas, carrito: ver_carrito(ctx) };
+  return {
+    agregados,
+    problemas,
+    ...(ajustados.length ? { ajustados, nota: `Lo mínimo por producto son ${MIN_GRAMOS} g: subí a ${MIN_GRAMOS} g ${ajustados.join(", ")}. Díselo al cliente.` } : {}),
+    carrito: ver_carrito(ctx),
+  };
 }
 
 export function quitar_del_carrito(ctx: Contexto, args: z.infer<typeof ArgsQuitar>) {
@@ -113,6 +138,7 @@ export function cambiar_cantidad(ctx: Contexto, args: z.infer<typeof ArgsCambiar
   const enCarrito = ctx.productos.filter((p) => ctx.carrito.some((i) => i.productoId === p.id));
   const r = buscarProducto(args.producto, enCarrito);
   if (r.tipo !== "exacto") return { cambiado: null, nota: "Ese producto no está en el carrito." };
+  if (args.gramos < MIN_GRAMOS) return { cambiado: null, problema: "minimo", nota: `Lo mínimo por producto son ${MIN_GRAMOS} g. Ofrece dejarlo en ${MIN_GRAMOS} g o quitarlo.` };
   if (r.producto.stockGramos < args.gramos) return { cambiado: null, problema: "sin_stock", disponibles: formatoGramos(r.producto.stockGramos) };
   ctx.carrito = ctx.carrito.map((i) => (i.productoId === r.producto.id ? { ...i, gramos: args.gramos } : i));
   ctx.esperandoConfirmacion = true;
@@ -131,7 +157,8 @@ export function sugerir_para_receta(ctx: Contexto, args: z.infer<typeof ArgsRece
   }
   const items: { producto: string; gramos: string; para: string }[] = [];
   const sugerencia: ItemCarrito[] = [];
-  for (const it of receta.items) {
+  for (const item of receta.items) {
+    const it = { ...item, gramos: Math.max(MIN_GRAMOS, item.gramos) };
     const p = ctx.productos.find((x) => x.slug === it.slug);
     if (!p || p.stockGramos < it.gramos) continue;
     items.push({ producto: p.nombre, gramos: formatoGramos(it.gramos), para: it.para });
@@ -207,7 +234,7 @@ export const DEFINICIONES = [
     type: "function" as const,
     function: {
       name: "agregar_al_carrito",
-      description: "Agrega uno o varios productos con sus gramos. Si el cliente dice solo un número ('100 de dandy') son gramos; 'medio kilo' = 500, 'un cuarto' = 250. Pasa el nombre tal como lo dijo el cliente.",
+      description: `Agrega uno o varios productos con sus gramos (mínimo ${MIN_GRAMOS} g por producto). Si el cliente dice solo un número ('100 de dandy') son gramos; 'medio kilo' = 500, 'un cuarto' = 250. Pasa el nombre tal como lo dijo el cliente.`,
       parameters: {
         type: "object",
         properties: {

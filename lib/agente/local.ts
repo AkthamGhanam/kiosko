@@ -2,6 +2,7 @@
 import { detectarIntencion, interpretarPedido, productoMencionado, aceptaSugerencia } from "../interpretar";
 import { buscarProducto } from "../buscar";
 import { formatoDinero } from "../dinero";
+import { MIN_GRAMOS } from "../config";
 import { detectarReceta } from "../recetas";
 import { INFO, pideConsejo, preguntaPicante, preguntaSalud, preguntaUso } from "../consejos";
 import { fonetica } from "../texto";
@@ -125,9 +126,10 @@ export async function responderLocal(ctx: Contexto, mensajeOriginal: string, his
       const lineas = interpretarPedido(mensaje);
       const r = agregar_al_carrito(ctx, { items: lineas.map((l) => ({ producto: l.texto, gramos: l.gramos })) });
       const problemas = explicarProblemas(r.problemas);
+      const minimo = r.ajustados?.length ? `Lo mínimo que vendemos son ${MIN_GRAMOS} gramos, así que te puse ${MIN_GRAMOS} de ${lista(r.ajustados.map(minus))}. ` : "";
       if (!r.agregados.length) return problemas || "No entendí qué producto quieres. Te abrí el menú para que lo toques.";
-      if (!problemas) return "Perfecto, tu pedido está listo. ¿Me lo confirmas?";
-      return `Agregué ${lista(r.agregados.map((a) => `${a.gramos} de ${minus(a.producto)}`))}. ${problemas} ¿Confirmo el resto?`;
+      if (!problemas) return minimo ? `${minimo}¿Te lo confirmo?` : "Perfecto, tu pedido está listo. ¿Me lo confirmas?";
+      return `Agregué ${lista(r.agregados.map((a) => `${a.gramos} de ${minus(a.producto)}`))}. ${minimo}${problemas} ¿Confirmo el resto?`;
     }
     case "confirmar": {
       const r = await confirmar_pedido(ctx);
@@ -147,7 +149,7 @@ export async function responderLocal(ctx: Contexto, mensajeOriginal: string, his
       const r = buscarProducto(q, ctx.productos);
       if (r.tipo === "exacto") {
         const p = r.producto;
-        return p.stockGramos >= 50 ? `${p.nombre} está a ${formatoDinero(p.precioKg)} el kilo. ¿Cuántos gramos te pongo?` : `${p.nombre} se nos agotó por hoy.`;
+        return p.stockGramos >= MIN_GRAMOS ? `${p.nombre} está a ${formatoDinero(p.precioKg)} el kilo. ¿Cuántos gramos te pongo?` : `${p.nombre} se nos agotó por hoy.`;
       }
       if (r.tipo === "ambiguo") {
         abrirMenu(ctx, r.opciones[0]?.categoria);

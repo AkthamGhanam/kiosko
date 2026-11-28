@@ -117,6 +117,12 @@ También responde preguntas de consejo: *"¿para qué sirve la linaza?"*, *"¿c�
 
 Para que entienda cualquier forma de preguntar y mantenga la conversación como una persona, agrega `GROQ_API_KEY` (gratis en [console.groq.com](https://console.groq.com/keys)). Sin clave funciona con reglas propias, que cubren los casos de arriba. Para sumar otro, agrega una entrada en `lib/recetas.ts`. Solo se sugiere lo que hay en existencia.
 
+**Mínimo por producto:** 100 g (`NEXT_PUBLIC_MIN_GRAMOS`). Si alguien pide menos, ANA lo sube a 100 g y lo dice; el menú táctil empieza en 100 g y el servidor rechaza líneas menores.
+
+**Habla real:** entiende muletillas y palabras alargadas (*"dame 100 deee pasas"*, *"este... ponme 100 de comino"*), autocorrecciones (*"100 de cumo... comino"*), diminutivos (*"un cuartico"*, *"medio kilito"*), *"1/2 kilo"* y formas venezolanas de pedir (*"regálame"*, *"échame"*, *"pásame"*).
+
+**Mejora continua:** cada frase que ANA no entiende se guarda y aparece en `/admin` → *"Lo que ANA no entendió"*. Para enseñarle, agrega la frase con el resultado esperado en `tests/frases.test.ts`, ajusta el intérprete hasta que `npm test` pase y publica.
+
 **Cuando ANA no entiende** (o el cliente dice algo con varias opciones, como *"maní"*), abre el menú táctil en la categoría que corresponde para que el cliente toque el producto.
 
 **Teclado para pruebas:** abre `http://localhost:3000/?teclado=1` para que aparezca un campo de texto.
@@ -151,12 +157,12 @@ En Vercel el panel `/admin` se actualiza cada 15 segundos en vez de al instante,
 npm test
 ```
 
-43 tests: cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
+120 tests, entre ellos una batería de más de 70 frases reales (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
 
 ## Guion de demo (2 minutos)
 
 1. **(0:00) Bienvenida.** Pantalla vertical con ANA respirando y mirando al frente. Toca "Toca para empezar": ANA saluda con la mano y se presenta.
-2. **(0:15) Pedido por voz.** ANA ya está escuchando (o pulsa el micrófono verde del centro) y di: *"Hola Ana, quiero pedir 120 gr de avena, 100 de dandy, 50 de paprika y otros 100 de maní salado"*. Mientras hablas se ve la onda y tu frase. ANA arma el carrito con animación, se despliega el detalle con gramos y subtotales, y responde: *"Perfecto, tu pedido está listo. ¿Me lo confirmas?"*.
+2. **(0:15) Pedido por voz.** ANA ya está escuchando (o pulsa el micrófono verde del centro) y di: *"Hola Ana, quiero pedir 120 gr de avena, 100 de dandy, 50 de paprika y otros 100 de maní salado"*. Mientras hablas se ve la onda y tu frase. ANA arma el carrito con animación, se despliega el detalle con gramos y subtotales, y como lo mínimo son 100 g responde: *"Lo mínimo que vendemos son 100 gramos, así que te puse 100 de paprika. ¿Te lo confirmo?"*.
 3. **(0:40) Corrección táctil (opcional).** Sube la avena a 170 g con el botón + del carrito, o toca "Pasas" en el catálogo y agrega 250 g.
 4. **(0:55) Confirmar.** Di *"Perfecto"* o pulsa Confirmar. ANA dice el total y los datos de pago móvil (Banesco 0134, 0414-4141368, CI 82.218.399) o que pases con la cajera.
 5. **(1:10) Salida y factura.** ANA se gira y sale caminando; entra la factura con número de orden, productos, gramos, precio por kg, subtotales, total, fecha, hora y datos de pago.

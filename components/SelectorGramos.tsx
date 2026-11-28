@@ -5,8 +5,9 @@ import type { ProductoCliente } from "@/lib/cliente/tipos";
 import { formatoDinero, formatoGramos, subtotalCents } from "@/lib/dinero";
 import { agregarTactil } from "@/lib/cliente/orquestador";
 import { useKiosko } from "@/lib/cliente/store";
+import { MIN_GRAMOS } from "@/lib/config";
 
-const RAPIDOS = [50, 100, 250, 500, 1000];
+const RAPIDOS = [100, 250, 500, 750, 1000];
 
 export function SelectorGramos({ producto, onCerrar }: { producto: ProductoCliente | null; onCerrar: () => void }) {
   const [gramos, setGramos] = useState(100);
@@ -45,14 +46,14 @@ export function SelectorGramos({ producto, onCerrar }: { producto: ProductoClien
             </div>
 
             <div className="mt-6 flex items-center justify-between gap-4">
-              <BotonRedondo onClick={() => setGramos((g) => Math.max(10, g - (g > 100 ? 50 : 10)))} etiqueta="Menos">−</BotonRedondo>
+              <BotonRedondo onClick={() => setGramos((g) => Math.max(MIN_GRAMOS, g - 50))} etiqueta="Menos">−</BotonRedondo>
               <div className="text-center">
                 <motion.div key={gramos} initial={{ scale: 0.85, opacity: 0.4 }} animate={{ scale: 1, opacity: 1 }} className="tabular font-display text-5xl font-semibold">
                   {formatoGramos(gramos)}
                 </motion.div>
                 <div className="tabular mt-1 text-lg font-semibold text-paprika">{formatoDinero(subtotalCents(gramos, producto.precioKg))}</div>
               </div>
-              <BotonRedondo onClick={() => setGramos((g) => g + (g >= 100 ? 50 : 10))} etiqueta="Más">+</BotonRedondo>
+              <BotonRedondo onClick={() => setGramos((g) => g + 50)} etiqueta="Más">+</BotonRedondo>
             </div>
 
             <div className="mt-5 grid grid-cols-5 gap-2">

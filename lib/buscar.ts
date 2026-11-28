@@ -1,6 +1,6 @@
 // Búsqueda difusa de productos por nombre y alias ("many" = maní, "paprica" = paprika).
 // Es pura: recibe la lista de productos, así se puede probar sin base de datos.
-import { normalizar, similitudFlexible } from "./texto";
+import { quitarMuletillas, similitudFlexible } from "./texto";
 
 export type ProductoBuscable = {
   id: number;
@@ -19,7 +19,7 @@ export type ResultadoBusqueda<P extends ProductoBuscable> =
 const RELLENO = new Set(["de", "del", "la", "el", "los", "las", "un", "una", "unos", "otros", "otro", "otra", "y", "con", "por", "favor", "gramos", "gr", "g"]);
 
 function tokens(s: string): string[] {
-  return normalizar(s)
+  return quitarMuletillas(s)
     .split(" ")
     .filter((t) => t && !RELLENO.has(t) && !/^\d/.test(t));
 }

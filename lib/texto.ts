@@ -5,6 +5,24 @@ export function normalizar(s: string): string {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9.,\s]/g, " ")
+    .replace(/([a-z])\1{2,}/g, "$1") // palabras alargadas al hablar: "deee" -> "de", "pasaaas" -> "pasas"
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Muletillas y titubeos que llegan del micrófono: "dame 100 de... eh... pasas"
+const MULETILLAS = /\b(e+h*|e+m+|m+|h+m+|a+h+|este|esteee|o sea|osea|pues|bueno|digamos|vale vale|ok ok)\b/g;
+
+/** Quita titubeos y repara "dee" -> "de". Se usa antes de leer un pedido o buscar un producto. */
+export function quitarMuletillas(s: string): string {
+  return normalizar(s.replace(/\b1\/2\b/g, " medio ").replace(/\b1\/4\b/g, " un cuarto ").replace(/\b3\/4\b/g, " 750 gramos "))
+    .replace(/\.{2,}/g, " ") // "de... eh... pasas"
+    .replace(/\bdee\b/g, "de")
+    // diminutivos: "un cuartico", "medio kilito", "cien gramitos"
+    .replace(/\bcuarti(c|t)o\b/g, "cuarto")
+    .replace(/\bkili(c|t)os?\b/g, "kilo")
+    .replace(/\bgrami(c|t)os\b/g, "gramos")
+    .replace(MULETILLAS, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

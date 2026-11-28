@@ -36,15 +36,16 @@ describe("ANA sin IA (intérprete local)", () => {
   it("recorre el guion de la demo de punta a punta", async () => {
     const r1 = await responder(cuerpo({ mensaje: GUION, canal: "voz" }), await productos());
     expect(r1.proveedor).toBe("local");
-    expect(r1.respuesta).toBe("Perfecto, tu pedido está listo. ¿Me lo confirmas?");
+    // el guion pide 50 g de paprika: la regla del mínimo lo sube a 100 g y ANA lo dice
+    expect(r1.respuesta).toBe("Lo mínimo que vendemos son 100 gramos, así que te puse 100 de paprika. ¿Te lo confirmo?");
     expect(r1.carrito).toHaveLength(4);
     expect(r1.esperandoConfirmacion).toBe(true);
 
     const r2 = await responder(cuerpo({ mensaje: "Perfecto", carrito: r1.carrito, esperandoConfirmacion: true, canal: "voz" }), await productos());
     expect(r2.factura?.lineas).toHaveLength(4);
-    // 120 g x 3.20 + 100 g x 9.50 + 50 g x 14.00 + 100 g x 7.80 = 0.38 + 0.95 + 0.70 + 0.78
-    expect(r2.factura?.totalCents).toBe(281);
-    expect(r2.respuesta).toContain("El total es $2.81");
+    // 120 g x 3.20 + 100 g x 9.50 + 100 g x 14.00 + 100 g x 7.80 = 0.38 + 0.95 + 1.40 + 0.78
+    expect(r2.factura?.totalCents).toBe(351);
+    expect(r2.respuesta).toContain("El total es $3.51");
     expect(r2.respuesta).toContain("Banesco");
     expect(r2.respuesta).toContain("0414-4141368");
     expect(r2.respuesta).toContain("82.218.399");
@@ -52,7 +53,7 @@ describe("ANA sin IA (intérprete local)", () => {
     expect(r2.carrito).toEqual([]);
     expect(await stock("avena")).toBe(8000 - 120);
     expect(await stock("mani-dandy")).toBe(5000 - 100);
-    expect(await stock("paprika")).toBe(2500 - 50);
+    expect(await stock("paprika")).toBe(2500 - 100);
     expect(await stock("mani-salado")).toBe(6000 - 100);
   });
 
@@ -120,7 +121,7 @@ describe("ANA asistente de ventas y sin la r", () => {
     const r1 = await responder(cuerpo({ mensaje: "Hola Ana, quielo pedil ciento veinte gamos de avena, cien de dandy, cincuenta de papika y cien de maní salado", canal: "voz" }), await productos());
     expect(r1.carrito).toHaveLength(4);
     const r2 = await responder(cuerpo({ mensaje: "pefecto", carrito: r1.carrito, esperandoConfirmacion: true, canal: "voz" }), await productos());
-    expect(r2.factura?.totalCents).toBe(281);
+    expect(r2.factura?.totalCents).toBe(351);
   });
 });
 

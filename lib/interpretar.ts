@@ -1,7 +1,7 @@
 // Parser local de pedidos en español: funciona sin IA y también sirve de red de seguridad.
 // "120 gr de avena, 100 de dandy y otros 100 de maní salado" ->
 //   [{texto:"avena", gramos:120}, {texto:"dandy", gramos:100}, {texto:"mani salado", gramos:100}]
-import { normalizar } from "./texto";
+import { normalizar, quitarMuletillas } from "./texto";
 
 export type LineaInterpretada = { texto: string; gramos: number };
 
@@ -23,7 +23,7 @@ const CONECTORES = new Set(["y", "e", "otros", "otro", "otras", "otra", "tambien
 type Token = { t: string; i: number };
 
 function tokenizar(texto: string): string[] {
-  return normalizar(texto)
+  return quitarMuletillas(texto)
     .replace(/(\d),(\d)/g, "$1.$2") // 1,5 kilos
     .replace(/(\d)(kg|kgs|kilos?|grs?|gramos?|glamos?|gamos?|g)\b/g, "$1 $2") // 120gr -> 120 gr
     .replace(/[,;]/g, " , ")
@@ -118,7 +118,7 @@ const RX = {
   negar: /\b(no|todavia no|espera|aun no)\b/,
   cancelar: /\b(cancela[rl]?|cancelalo|bo[rl]+a todo|bo[rl]?a todo|vacia[rl]?|empeza[rl]? de nuevo|olvidalo)\b/,
   quitar: /\b(quita[rl]?|quitame|elimina[rl]?|saca[rl]?|[rl]?eti[rl]?a|sin el|sin la)\b/,
-  precio: /\b(cuanto (cuesta|vale|sale|esta)|p[rl]?ecio|a como)\b/,
+  precio: /\b(cuanto (cuesta|cuestan|vale|valen|sale|salen|esta|estan)|p[rl]?ecio|a como (esta|estan|sale|salen|es)?|que p[rl]?ecio)\b/,
   catalogo: /\b(que (tienen|tienes|venden|vendes|hay)|catalogo|productos|menu|lista)\b/,
   carrito: /\b(mi pedido|el pedido|ca[rl]+ito|ca[rl]?ito|cuanto (es|va|llevo)|total)\b/,
   saludo: /\b(hola|buenas|buenos dias|buenas tardes|buenas noches|hey|epa)\b/,
@@ -143,7 +143,7 @@ export function productoMencionado(texto: string): string {
   return normalizar(texto)
     .replace(RX.quitar, " ")
     .replace(RX.precio, " ")
-    .replace(/\b(hola|ana|por favor|porfa|el kilo|kilo|de|del|la|el|los|las|me|mi|pedido|carrito)\b/g, " ")
+    .replace(/\b(hola|ana|por favor|porfa|el kilo|kilo|de|del|la|el|los|las|me|mi|pedido|carrito|esta|estan|sale|salen|tienes|tiene|hay)\b/g, " ")
     .replace(/[,?.!]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

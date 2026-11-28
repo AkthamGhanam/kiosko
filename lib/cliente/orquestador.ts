@@ -3,7 +3,7 @@
 import { agregarMensaje, fijar, obtener } from "./store";
 import { VozElevenLabs, VozNavegador, audioCtx, escuchar, escucharGrabando, grabacionSoportada, microfonoSoportado, type MotorVoz } from "./voz";
 import type { FacturaCliente, ProductoCliente, RespuestaAna } from "./tipos";
-import { TIENDA, frasePago } from "../config";
+import { MIN_GRAMOS, TIENDA, frasePago } from "../config";
 import { formatoDinero, formatoGramos } from "../dinero";
 
 let voz: MotorVoz | null = null;
@@ -185,7 +185,8 @@ export function agregarTactil(p: ProductoCliente, gramos: number) {
 
 export function cambiarGramos(productoId: number, gramos: number) {
   fijar((e) => ({
-    carrito: gramos <= 0 ? e.carrito.filter((i) => i.productoId !== productoId) : e.carrito.map((i) => (i.productoId === productoId ? { ...i, gramos } : i)),
+    // por debajo del mínimo de la tienda, la línea se quita
+    carrito: gramos < MIN_GRAMOS ? e.carrito.filter((i) => i.productoId !== productoId) : e.carrito.map((i) => (i.productoId === productoId ? { ...i, gramos } : i)),
   }));
   if (!obtener().carrito.length) fijar({ esperandoConfirmacion: false });
 }

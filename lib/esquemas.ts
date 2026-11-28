@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { MIN_GRAMOS } from "./config";
 
 export const MAX_GRAMOS_LINEA = 20000;
 
 export const ItemCarrito = z.object({
   productoId: z.number().int().positive(),
-  gramos: z.number().int().min(1).max(MAX_GRAMOS_LINEA),
+  gramos: z.number().int().min(MIN_GRAMOS).max(MAX_GRAMOS_LINEA),
 });
 export type ItemCarrito = z.infer<typeof ItemCarrito>;
 
