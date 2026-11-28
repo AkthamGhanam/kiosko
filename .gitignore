@@ -8,3 +8,4 @@ prisma/*.db
 prisma/*.db-journal
 test-results
 /previews
+prisma/postgres/
