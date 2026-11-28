@@ -111,7 +111,11 @@ Si el cliente cuenta qué va a cocinar, ANA recomienda los productos de la tiend
 > Cliente: *"Quiero hacer hallacas."*
 > ANA: *"¡Qué sabroso! Para hallacas te recomiendo onoto, comino molido, ajo en polvo, pimienta negra, pasas y almendras. El onoto es el secreto del color dorado de la masa. ¿Te los agrego?"*
 
-Platos incluidos: hallacas, pan de jamón, torta negra, chocolate caliente, arroz con leche, ponche crema, pollo al horno, carne mechada / pabellón, asado negro, curry, granola casera y pasapalos para una fiesta. Para sumar otro, agrega una entrada en `lib/recetas.ts`. Solo se sugiere lo que hay en existencia.
+Platos incluidos: hallacas, pan de jamón, torta negra, chocolate caliente, arroz con leche, ponche crema, pollo al horno, carne mechada / pabellón, asado negro, carne asada, pescado, caraotas, sopas, pasta y pizza, ensaladas, papas y verduras, curry, granola casera y pasapalos para una fiesta.
+
+También responde preguntas de consejo: *"¿para qué sirve la linaza?"*, *"¿cómo se usa el onoto?"*, *"¿cuál pica más?"*, *"¿qué me recomiendas?"* (ahí pregunta qué vas a cocinar). Lo que sabe de cada producto está en `lib/consejos.ts`. No da consejos de salud. Recuerda de qué producto hablaban: si ANA pregunta *"¿cuántos gramos de comino te pongo?"* basta con responder *"doscientos"*.
+
+Para que entienda cualquier forma de preguntar y mantenga la conversación como una persona, agrega `GROQ_API_KEY` (gratis en [console.groq.com](https://console.groq.com/keys)). Sin clave funciona con reglas propias, que cubren los casos de arriba. Para sumar otro, agrega una entrada en `lib/recetas.ts`. Solo se sugiere lo que hay en existencia.
 
 **Cuando ANA no entiende** (o el cliente dice algo con varias opciones, como *"maní"*), abre el menú táctil en la categoría que corresponde para que el cliente toque el producto.
 
@@ -147,7 +151,7 @@ En Vercel el panel `/admin` se actualiza cada 15 segundos en vez de al instante,
 npm test
 ```
 
-36 tests: cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
+43 tests: cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
 
 ## Guion de demo (2 minutos)
 

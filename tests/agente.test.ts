@@ -178,3 +178,53 @@ describe("ANA con IA (proveedor simulado)", () => {
     expect(r.respuesta).toBe("¿Cuántos gramos quieres?");
   });
 });
+
+describe("ANA consejera", () => {
+  const h = (texto: string) => [{ rol: "ana" as const, texto }];
+  it("responde qué condimentos lleva la hallaca, aunque lo digan sin r", async () => {
+    for (const m of ["¿Qué condimentos necesito para la hallaca?", "que le echo a las ayacas", "quielo hacel hayacas pala navidad"]) {
+      const r = await responder(cuerpo({ mensaje: m }), await productos());
+      expect(r.respuesta, m).toMatch(/hallacas.*onoto/);
+      expect(r.sugerencia.length, m).toBeGreaterThan(0);
+    }
+  });
+
+  it("aconseja para platos comunes", async () => {
+    const casos: [string, RegExp][] = [
+      ["¿Qué condimento le echo a la calne?", /carne/],
+      ["necesito ayuda con algo para el pescado", /pescado/],
+      ["qué le pongo a las caraotas", /caraotas/],
+    ];
+    for (const [m, rx] of casos) {
+      const r = await responder(cuerpo({ mensaje: m }), await productos());
+      expect(r.respuesta, m).toMatch(rx);
+      expect(r.abrirMenu, m).toBe(false);
+    }
+  });
+
+  it("explica para qué sirve un producto y cuál pica", async () => {
+    const r1 = await responder(cuerpo({ mensaje: "para qué sirve la linaza" }), await productos());
+    expect(r1.respuesta).toMatch(/Linaza se usa/);
+    const r2 = await responder(cuerpo({ mensaje: "como se usa la paplika" }), await productos());
+    expect(r2.respuesta).toMatch(/Paprika se usa/);
+    const r3 = await responder(cuerpo({ mensaje: "cuál es más picante" }), await productos());
+    expect(r3.respuesta).toMatch(/pimienta negra/);
+  });
+
+  it("si pide un consejo sin plato, pregunta qué va a cocinar sin abrir el menú", async () => {
+    const r = await responder(cuerpo({ mensaje: "hola ana, qué me recomiendas" }), await productos());
+    expect(r.respuesta).toMatch(/Qué vas a cocinar/);
+    expect(r.abrirMenu).toBe(false);
+  });
+
+  it("no da consejos de salud", async () => {
+    const r = await responder(cuerpo({ mensaje: "tienes algo para la gripe" }), await productos());
+    expect(r.respuesta).toMatch(/médico/);
+  });
+
+  it("recuerda de qué producto hablaban cuando solo dicen la cantidad", async () => {
+    const r = await responder(cuerpo({ mensaje: "doscientos", historial: h("Comino molido se usa para guisos. ¿Cuántos gramos te pongo?") }), await productos());
+    expect(r.carrito).toHaveLength(1);
+    expect(r.carrito[0].gramos).toBe(200);
+  });
+});

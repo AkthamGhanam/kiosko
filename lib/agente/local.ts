@@ -3,6 +3,8 @@ import { detectarIntencion, interpretarPedido, productoMencionado, aceptaSugeren
 import { buscarProducto } from "../buscar";
 import { formatoDinero } from "../dinero";
 import { detectarReceta } from "../recetas";
+import { INFO, pideConsejo, preguntaPicante, preguntaSalud, preguntaUso } from "../consejos";
+import { fonetica } from "../texto";
 import {
   agregar_al_carrito,
   agregar_sugerencia,
@@ -33,12 +35,63 @@ function explicarProblemas(problemas: Record<string, unknown>[]): string {
   return frases.join(" ");
 }
 
+const ABRIDORES = ["¡Qué sabroso!", "¡Buenísimo!", "¡Qué rico!", "¡Me encanta!"];
+const abridor = () => ABRIDORES[Math.floor(Math.random() * ABRIDORES.length)];
+
+/** Producto nombrado en una pregunta ("¿para qué sirve la linaza?"), por nombre o alias, tolerando la r. */
+function productoEnTexto(ctx: Contexto, texto: string) {
+  const f = ` ${fonetica(texto)} `;
+  let mejor: { p: Contexto["productos"][number]; largo: number } | null = null;
+  for (const p of ctx.productos) {
+    for (const nombre of [p.nombre, ...p.alias.split(",")].map((x) => fonetica(x.trim())).filter((x) => x.length > 2)) {
+      if ((f.includes(` ${nombre} `) || f.includes(` ${nombre}s `)) && (!mejor || nombre.length > mejor.largo)) mejor = { p, largo: nombre.length };
+    }
+  }
+  return mejor?.p ?? null;
+}
+
+/** Preguntas de vendedora: para qué sirve un producto, cuál pica, o un consejo sin plato concreto. */
+function responderConsejo(ctx: Contexto, mensaje: string): string | null {
+  if (preguntaSalud(mensaje)) {
+    return "Yo te ayudo con la cocina, pero para temas de salud lo mejor es preguntarle a un médico. ¿Qué vas a cocinar? Te digo qué condimentos llevar.";
+  }
+  if (preguntaPicante(mensaje)) {
+    const pican = ctx.productos.filter((p) => (INFO[p.slug]?.picante ?? 0) > 0).sort((a, b) => (INFO[b.slug].picante ?? 0) - (INFO[a.slug].picante ?? 0));
+    const suaves = ctx.productos.filter((p) => INFO[p.slug]?.picante === 0).slice(0, 3);
+    return `Lo que más pica es ${lista(pican.map((p) => minus(p.nombre)))}. Si prefieres que no pique, ${lista(suaves.map((p) => minus(p.nombre)))} dan sabor sin picar. ¿Cuál te pongo?`;
+  }
+  const p = productoEnTexto(ctx, mensaje);
+  if (p && (preguntaUso(mensaje) || pideConsejo(mensaje))) {
+    const info = INFO[p.slug];
+    if (info) return `${p.nombre} se usa ${info.uso}.${info.truco ? ` ${info.truco}` : ""} ¿Cuántos gramos te pongo?`;
+  }
+  if (pideConsejo(mensaje) || preguntaUso(mensaje)) {
+    return "¡Con gusto te ayudo! ¿Qué vas a cocinar? Por ejemplo hallacas, pollo, carne, pescado, caraotas, pasta o algo para picar, y te digo qué llevar.";
+  }
+  return null;
+}
+
 function abrirMenu(ctx: Contexto, categoria?: string) {
   ctx.abrirMenu = true;
   ctx.categoriaMenu = categoria;
 }
 
-export async function responderLocal(ctx: Contexto, mensaje: string): Promise<string> {
+/**
+ * Memoria corta: si ANA acaba de hablar de un producto ("¿Cuántos gramos de comino te pongo?")
+ * y el cliente responde solo con la cantidad ("doscientos"), se entiende que es de ese producto.
+ */
+function completarConContexto(ctx: Contexto, mensaje: string, historial: { rol: string; texto: string }[]) {
+  if (interpretarPedido(mensaje).length) return mensaje;
+  const ultimaAna = [...historial].reverse().find((m) => m.rol === "ana");
+  if (!ultimaAna || !/cu[aá]ntos gramos/i.test(ultimaAna.texto)) return mensaje;
+  const p = productoEnTexto(ctx, ultimaAna.texto);
+  if (!p) return mensaje;
+  const conProducto = `${mensaje} de ${p.nombre}`;
+  return interpretarPedido(conProducto).length ? conProducto : mensaje;
+}
+
+export async function responderLocal(ctx: Contexto, mensajeOriginal: string, historial: { rol: string; texto: string }[] = []): Promise<string> {
+  const mensaje = completarConContexto(ctx, mensajeOriginal, historial);
   // 1. ¿acepta la sugerencia de una receta?
   if (ctx.sugerencia.length && aceptaSugerencia(mensaje)) {
     const r = agregar_sugerencia(ctx);
@@ -53,8 +106,16 @@ export async function responderLocal(ctx: Contexto, mensaje: string): Promise<st
     if (receta) {
       const r = sugerir_para_receta(ctx, { plato: receta.plato });
       if (r.encontrada && r.sugerencia?.length) {
-        return `¡Qué sabroso! Para ${receta.plato} te recomiendo ${lista(r.sugerencia.map((s) => minus(s.producto)))}. ${receta.consejo} ¿Te los agrego?`;
+        return `${abridor()} Para ${receta.plato} te recomiendo ${lista(r.sugerencia.map((s) => minus(s.producto)))}. ${receta.consejo} ¿Te los agrego?`;
       }
+    }
+  }
+  // 3. consejos: "¿para qué sirve la linaza?", "¿cuál pica más?", "¿qué me recomiendas?"
+  if (intencion === "otro" || intencion === "saludo" || intencion === "catalogo" || intencion === "precio") {
+    const consejo = intencion === "precio" && !preguntaUso(mensaje) ? null : responderConsejo(ctx, mensaje);
+    if (consejo) {
+      ctx.sugerencia = [];
+      return consejo;
     }
   }
   ctx.sugerencia = [];

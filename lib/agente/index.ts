@@ -5,6 +5,7 @@ import { completar, proveedoresActivos, type MensajeLLM } from "../llm";
 import { TIENDA, frasePago } from "../config";
 import { formatoDinero } from "../dinero";
 import { aceptaSugerencia, detectarIntencion } from "../interpretar";
+import { INFO } from "../consejos";
 import { DEFINICIONES, agregar_sugerencia, confirmar_pedido, ejecutarHerramienta, ver_carrito, type Contexto } from "./herramientas";
 import { responderLocal } from "./local";
 import type { AnaBody } from "../esquemas";
@@ -25,7 +26,10 @@ export type RespuestaAgente = {
 export function promptSistema(ctx: Contexto) {
   const c = ver_carrito(ctx);
   const catalogo = ctx.productos
-    .map((p) => `${p.nombre}${p.alias ? ` (${p.alias.split(",").slice(0, 3).join(", ")})` : ""}`)
+    .map((p) => {
+      const i = INFO[p.slug];
+      return `${p.nombre}${p.alias ? ` (${p.alias.split(",").slice(0, 3).join(", ")})` : ""}${i ? `: ${i.uso}${i.picante ? `, pica ${["", "poco", "medio", "bastante"][i.picante]}` : ""}` : ""}`;
+    })
     .join("; ");
   return `Eres ANA, la asistente de ventas del kiosko de ${TIENDA.nombre}, una tienda de condimentos, maní y frutos secos que vende al peso.
 
@@ -41,13 +45,24 @@ Reglas:
 - No digas totales ni precios que no vengan de una herramienta. El total se ve en pantalla.
 - Llama a confirmar_pedido solo cuando el cliente confirme un pedido que ya le mostraste. No digas los datos de pago: el sistema los agrega.
 - Asistente de ventas: si el cliente cuenta qué va a cocinar (hallacas, pan de jamón, torta negra, pollo al horno, una fiesta...), llama a sugerir_para_receta, recomiéndale esos productos con un consejo corto y pregúntale "¿Te los agrego?". Si acepta, llama a agregar_sugerencia.
-- Si no entiendes lo que pide, llama a abrir_menu y dile que puede tocar los productos en pantalla.
+- Consejera: si pide un consejo o pregunta qué le pone a un plato, para qué sirve un producto, cómo se usa o cuál pica más, respóndele con lo que sabes del catálogo (abajo) y de cocina venezolana, en 1 o 2 frases, y ofrécele el producto. Si no dice qué va a cocinar, pregúntaselo. Para un plato, prefiere sugerir_para_receta; si no hay receta guardada, recomienda tú mismo productos del catálogo.
+- Usa la conversación anterior: "y para el pollo?", "ponme eso", "lo mismo pero más" se refieren a lo que se habló.
+- No des consejos de salud ni medicinales: di con amabilidad que eso es para un médico y vuelve a la cocina.
+- Si no entiendes lo que pide ni con la conversación anterior, llama a abrir_menu y dile que puede tocar los productos en pantalla.
 - Si piden algo fuera de la tienda, redirige con amabilidad al pedido.
 
 Catálogo: ${catalogo}.
 Carrito actual: ${c.vacio ? "vacío" : c.lineas.map((l) => `${l.gramos} de ${l.producto}`).join(", ") + `; total ${c.total}`}.
 ${ctx.confirmacionPermitida ? "Ya le pediste confirmación al cliente." : ""}
 ${ctx.sugerencia.length ? "Hay una sugerencia de receta esperando que el cliente la acepte." : ""}`;
+}
+
+/** El kiosko manda el historial con el mensaje actual al final: se quita para no repetirlo. */
+function historialSinRepetir(body: AnaBody) {
+  const h = [...body.historial];
+  const ultimo = h[h.length - 1];
+  if (ultimo && ultimo.rol === "cliente" && ultimo.texto.trim() === body.mensaje.trim()) h.pop();
+  return h;
 }
 
 async function conLLM(ctx: Contexto, body: AnaBody): Promise<{ texto: string; proveedor: string } | null> {
@@ -57,7 +72,7 @@ async function conLLM(ctx: Contexto, body: AnaBody): Promise<{ texto: string; pr
     try {
       const mensajes: MensajeLLM[] = [
         { role: "system", content: promptSistema(ctx) },
-        ...body.historial.slice(-8).map((m) => ({ role: m.rol === "cliente" ? ("user" as const) : ("assistant" as const), content: m.texto })),
+        ...historialSinRepetir(body).slice(-12).map((m) => ({ role: m.rol === "cliente" ? ("user" as const) : ("assistant" as const), content: m.texto })),
         { role: "user", content: body.mensaje },
       ];
       for (let paso = 0; paso < 5; paso++) {
@@ -115,7 +130,7 @@ export async function responder(body: AnaBody, productos: Producto[]): Promise<R
       texto = ia.texto;
       proveedor = ia.proveedor;
     } else {
-      texto = await responderLocal(ctx, body.mensaje);
+      texto = await responderLocal(ctx, body.mensaje, historialSinRepetir(body));
     }
   }
 

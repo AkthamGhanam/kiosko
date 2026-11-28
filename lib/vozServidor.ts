@@ -35,6 +35,12 @@ export async function sintetizar(texto: string): Promise<{ audio: string; alinea
   return { audio: j.audio_base64, alineacion: j.alignment ?? j.normalized_alignment ?? null };
 }
 
+/** Quita marcas de ruido ("(música)", "[risas]") y descarta transcripciones vacías. */
+export function limpiarTranscripcion(t: string) {
+  const limpio = t.replace(/[\[(][^\])]*[\])]/g, " ").replace(/\s+/g, " ").trim();
+  return /[a-záéíóúñ]{2,}/i.test(limpio) ? limpio : "";
+}
+
 /** Pasa la voz del cliente a texto. `vocabulario` ayuda a reconocer nombres de productos. */
 export async function transcribir(audio: Blob, vocabulario: string[]): Promise<{ texto: string; proveedor: string }> {
   const cfg = configVoz();
@@ -49,7 +55,7 @@ export async function transcribir(audio: Blob, vocabulario: string[]): Promise<{
       const res = await fetch(`${EL}/speech-to-text`, { method: "POST", headers: { "xi-api-key": env("ELEVENLABS_API_KEY") }, body: f, signal: AbortSignal.timeout(15000) });
       if (!res.ok) throw new Error(`ElevenLabs STT ${res.status}: ${(await res.text()).slice(0, 200)}`);
       const j = (await res.json()) as { text?: string };
-      return { texto: (j.text ?? "").trim(), proveedor: "elevenlabs" };
+      return { texto: limpiarTranscripcion(j.text ?? ""), proveedor: "elevenlabs" };
     } catch (e) {
       errores.push(String(e));
     }
@@ -71,7 +77,7 @@ export async function transcribir(audio: Blob, vocabulario: string[]): Promise<{
     });
     if (res.ok) {
       const j = (await res.json()) as { text?: string };
-      return { texto: (j.text ?? "").trim(), proveedor: "groq" };
+      return { texto: limpiarTranscripcion(j.text ?? ""), proveedor: "groq" };
     }
     errores.push(`Groq STT ${res.status}`);
   }

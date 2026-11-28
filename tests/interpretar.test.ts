@@ -106,3 +106,12 @@ describe("recetas", () => {
     for (const r of RECETAS) for (const i of r.items) expect(slugs.has(i.slug), `${r.plato}: ${i.slug}`).toBe(true);
   });
 });
+
+describe("transcripción", () => {
+  it("quita marcas de ruido del entorno", async () => {
+    const { limpiarTranscripcion } = await import("@/lib/vozServidor");
+    expect(limpiarTranscripcion("(música de fondo) quiero 100 de comino [risas]")).toBe("quiero 100 de comino");
+    expect(limpiarTranscripcion("(ruido)")).toBe("");
+    expect(limpiarTranscripcion(" . ")).toBe("");
+  });
+});

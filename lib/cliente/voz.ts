@@ -292,9 +292,15 @@ export function escucharGrabando(opts: {
       nodo.connect(an);
     }
     const buf = new Uint8Array(new ArrayBuffer(1024));
-    let ruido = 0.012; // nivel de fondo, se adapta los primeros instantes
+    // Ruido del entorno: se mide al empezar y se sigue ajustando mientras nadie habla,
+    // así en una tienda con música o gente conversando no se queda grabando para siempre.
+    let ruido = 0.01;
+    let vozMs = 0; // tiempo acumulado por encima del umbral (descarta golpes y ruidos cortos)
+    let ultimo = performance.now();
     const vigilar = () => {
       const ahora = performance.now();
+      const dt = ahora - ultimo;
+      ultimo = ahora;
       if (an) {
         an.getByteTimeDomainData(buf);
         let s = 0;
@@ -303,18 +309,26 @@ export function escucharGrabando(opts: {
           s += x * x;
         }
         const rms = Math.sqrt(s / buf.length);
-        if (!habló && ahora - t0 < 400) ruido = Math.max(ruido, rms * 1.2);
+        const umbral = Math.max(0.018, ruido * 2.2);
         opts.onNivel(Math.min(1, rms * 8));
-        if (rms > Math.max(0.02, ruido * 1.8)) {
-          if (!habló) opts.onHablando();
-          habló = true;
-          ultimaVoz = ahora;
+        if (rms > umbral) {
+          vozMs += dt;
+          if (vozMs > 250) {
+            if (!habló) opts.onHablando();
+            habló = true;
+            ultimaVoz = ahora;
+          }
+        } else {
+          vozMs = Math.max(0, vozMs - dt * 0.5);
+          // promedio lento del fondo (solo con silencio relativo)
+          ruido = ahora - t0 < 500 ? Math.max(ruido, rms) : ruido * 0.98 + rms * 0.02;
+          if (habló && rms > umbral * 0.7) ultimaVoz = ahora; // final de palabra suave
         }
       } else if (ahora - t0 > 300) {
         habló = true; // sin analizador: se graba un tramo fijo
       }
       const silencio = ahora - ultimaVoz;
-      if ((habló && silencio > 1100) || ahora - t0 > 12000 || (!habló && ahora - t0 > 7000)) return terminar();
+      if ((habló && silencio > 1000) || ahora - t0 > 12000 || (!habló && ahora - t0 > 7000)) return terminar();
       raf = requestAnimationFrame(vigilar);
     };
     const terminar = () => {

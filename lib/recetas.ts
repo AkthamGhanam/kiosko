@@ -140,6 +140,84 @@ export const RECETAS: Receta[] = [
     ],
     consejo: "Para unas 10 personas, con esto alcanza bien.",
   },
+  {
+    plato: "carne asada",
+    claves: ["carne", "carne asada", "parrilla", "parrillada", "bistec", "bisteck", "carne guisada", "costillas", "res"],
+    items: [
+      { slug: "ajo-polvo", gramos: 50, para: "el adobo" },
+      { slug: "pimienta-negra", gramos: 25, para: "el adobo" },
+      { slug: "paprika", gramos: 50, para: "el color" },
+      { slug: "comino", gramos: 25, para: "un toque criollo" },
+      { slug: "oregano", gramos: 15, para: "el aroma" },
+    ],
+    consejo: "Sálala justo antes de ponerla al fuego para que no suelte el jugo.",
+  },
+  {
+    plato: "pescado",
+    claves: ["pescado", "pescados", "pargo", "mero", "atun", "salmon", "camarones", "mariscos", "ceviche", "pescado frito"],
+    items: [
+      { slug: "ajo-polvo", gramos: 50, para: "el adobo" },
+      { slug: "paprika", gramos: 25, para: "el color" },
+      { slug: "oregano", gramos: 15, para: "el aroma" },
+      { slug: "pimienta-negra", gramos: 25, para: "el adobo" },
+    ],
+    consejo: "Con limón, ajo y un poquito de paprika queda doradito y sabroso.",
+  },
+  {
+    plato: "caraotas negras",
+    claves: ["caraotas", "caraota", "frijoles", "porotos", "granos", "lentejas", "arvejas"],
+    items: [
+      { slug: "comino", gramos: 25, para: "el sabor criollo" },
+      { slug: "ajo-polvo", gramos: 50, para: "el sofrito" },
+      { slug: "onoto", gramos: 25, para: "el color" },
+      { slug: "pimienta-negra", gramos: 15, para: "el toque final" },
+    ],
+    consejo: "Una pizca de comino al final hace que sepan a caraotas de casa.",
+  },
+  {
+    plato: "sopa",
+    claves: ["sopa", "sancocho", "hervido", "consome", "crema de auyama", "cruzado"],
+    items: [
+      { slug: "comino", gramos: 25, para: "el caldo" },
+      { slug: "ajo-polvo", gramos: 50, para: "el caldo" },
+      { slug: "onoto", gramos: 25, para: "el color" },
+      { slug: "oregano", gramos: 15, para: "el aroma" },
+      { slug: "pimienta-negra", gramos: 15, para: "el toque final" },
+    ],
+    consejo: "El orégano va al final, así no pierde el aroma.",
+  },
+  {
+    plato: "pasta",
+    claves: ["pasta", "espaguetis", "espagueti", "salsa", "salsa de tomate", "bolonesa", "pizza", "lasana"],
+    items: [
+      { slug: "oregano", gramos: 25, para: "la salsa" },
+      { slug: "ajo-polvo", gramos: 50, para: "la salsa" },
+      { slug: "pimienta-negra", gramos: 15, para: "el toque final" },
+    ],
+    consejo: "Deja la salsa a fuego bajo unos minutos con el orégano y queda mucho más rica.",
+  },
+  {
+    plato: "ensalada",
+    claves: ["ensalada", "ensaladas", "algo saludable", "dieta"],
+    items: [
+      { slug: "nueces", gramos: 100, para: "lo crujiente" },
+      { slug: "almendras", gramos: 100, para: "lo crujiente" },
+      { slug: "pasas", gramos: 100, para: "un toque dulce" },
+      { slug: "ajonjoli", gramos: 50, para: "espolvorear" },
+    ],
+    consejo: "Tuesta el ajonjolí un minuto en sartén seco y cambia todo el sabor.",
+  },
+  {
+    plato: "papas y verduras",
+    claves: ["papas", "papa", "papas al horno", "verduras", "vegetales", "arroz"],
+    items: [
+      { slug: "paprika", gramos: 25, para: "el color" },
+      { slug: "ajo-polvo", gramos: 25, para: "el sabor" },
+      { slug: "oregano", gramos: 15, para: "el aroma" },
+      { slug: "pimienta-negra", gramos: 15, para: "el toque final" },
+    ],
+    consejo: "Con un chorrito de aceite y paprika quedan doraditas al horno.",
+  },
 ];
 
 const RX_COCINAR = /\b(hace[rl]?|p[rl]?epa[rl]a[rl]?|cocina[rl]?|voy a|vamos a|quie[rl]o|receta|que (le )?(pongo|echo|lleva|necesito)|pa[rl]a (unas?|el|la|los|las))\b/;
