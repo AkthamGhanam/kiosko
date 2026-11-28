@@ -41,11 +41,16 @@ def main():
         if "thumbnail" in nombre:
             im.thumbnail((256, 256), Image.LANCZOS)
         buf = io.BytesIO()
-        if im.mode in ("RGBA", "LA", "P"):
+        if im.mode == "P":
+            im = im.convert("RGBA")
+        # VRoid exporta todo en RGBA aunque sea opaco: si el alfa es 255 en todo, se trata como RGB
+        if im.mode in ("RGBA", "LA") and im.getchannel("A").getextrema()[0] == 255:
+            im = im.convert("RGB")
+        if im.mode in ("RGBA", "LA"):
             im.save(buf, "PNG", optimize=True)
             tipo = "image/png"
         else:
-            calidad = 92 if nombre.startswith("nm_") else 85  # mapas de normales con más calidad
+            calidad = 92 if nombre.startswith("nm_") or "_nml" in nombre else 85  # mapas de normales con más calidad
             im.convert("RGB").save(buf, "JPEG", quality=calidad, optimize=True)
             tipo = "image/jpeg"
         if len(buf.getvalue()) < len(datos[i]):  # solo se reemplaza si de verdad pesa menos

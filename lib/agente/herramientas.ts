@@ -3,8 +3,10 @@
 import { z } from "zod";
 import type { Producto } from "@prisma/client";
 import { buscarProducto, puntuar } from "../buscar";
+import { RECETAS, detectarReceta } from "../recetas";
 import { cotizarCon, confirmarPedido, type Factura, type LineaRechazada } from "../pedidos";
 import { formatoDinero, formatoGramos } from "../dinero";
+import { MIN_GRAMOS } from "../config";
 import { MAX_GRAMOS_LINEA, type Canal, type ItemCarrito } from "../esquemas";
 
 export type Contexto = {
@@ -14,6 +16,11 @@ export type Contexto = {
   /** true solo si ANA ya había pedido confirmación ANTES de este mensaje del cliente */
   confirmacionPermitida: boolean;
   canal: Canal;
+  /** sugerencia pendiente (productos de una receta) */
+  sugerencia: ItemCarrito[];
+  /** el kiosko debe abrir el menú táctil (ANA no entendió o el producto es ambiguo) */
+  abrirMenu: boolean;
+  categoriaMenu?: string;
   factura?: Factura;
   rechazadas?: LineaRechazada[];
 };
@@ -21,7 +28,7 @@ export type Contexto = {
 const ficha = (p: Producto) => ({
   nombre: p.nombre,
   precio_por_kg: formatoDinero(p.precioKg),
-  disponible: p.stockGramos >= 50 ? formatoGramos(p.stockGramos) : "agotado",
+  disponible: p.stockGramos >= MIN_GRAMOS ? formatoGramos(p.stockGramos) : "agotado",
 });
 
 export const ArgsBuscar = z.object({ consulta: z.string().min(1).max(100) });
@@ -37,6 +44,8 @@ export const ArgsAgregar = z.object({
     .max(20),
 });
 export const ArgsQuitar = z.object({ producto: z.string().min(1).max(100) });
+export const ArgsReceta = z.object({ plato: z.string().min(1).max(100) });
+export const ArgsMenu = z.object({ categoria: z.string().max(60).optional() });
 export const ArgsCambiar = z.object({ producto: z.string().min(1).max(100), gramos: z.coerce.number().int().min(1).max(MAX_GRAMOS_LINEA) });
 
 export function buscar_productos(ctx: Contexto, args: z.infer<typeof ArgsBuscar>) {
@@ -55,17 +64,38 @@ function alternativas(ctx: Contexto, p: Producto, gramos: number) {
     .map((x) => x.nombre);
 }
 
+/**
+ * Al hablar la gente se corrige: "100 de cumo... comino". Si la frase completa no da un
+ * producto claro, se prueba con las últimas palabras ("comino").
+ */
+function buscarConCorreccion(texto: string, productos: Producto[]) {
+  const r = buscarProducto(texto, productos);
+  if (r.tipo === "exacto") return r;
+  const palabras = texto.trim().split(/\s+/);
+  for (let i = 1; i < palabras.length; i++) {
+    const otra = buscarProducto(palabras.slice(i).join(" "), productos);
+    if (otra.tipo === "exacto") return otra;
+  }
+  return r;
+}
+
 export function agregar_al_carrito(ctx: Contexto, args: z.infer<typeof ArgsAgregar>) {
   const agregados: { producto: string; gramos: string }[] = [];
   const problemas: Record<string, unknown>[] = [];
-  for (const it of args.items) {
-    const r = buscarProducto(it.producto, ctx.productos);
+  const ajustados: string[] = [];
+  for (const original of args.items) {
+    // regla de la tienda: lo mínimo son MIN_GRAMOS por producto
+    const it = original.gramos < MIN_GRAMOS ? { ...original, gramos: MIN_GRAMOS } : original;
+    const r = buscarConCorreccion(it.producto, ctx.productos);
     if (r.tipo === "ninguno") {
       problemas.push({ pedido: it.producto, problema: "no_existe", sugerencias: r.sugerencias.map((p) => p.nombre) });
+      ctx.abrirMenu = true;
       continue;
     }
     if (r.tipo === "ambiguo") {
       problemas.push({ pedido: it.producto, problema: "ambiguo", opciones: r.opciones.map((p) => p.nombre), gramos: it.gramos });
+      ctx.abrirMenu = true;
+      ctx.categoriaMenu = r.opciones[0]?.categoria;
       continue;
     }
     const p = r.producto;
@@ -84,9 +114,15 @@ export function agregar_al_carrito(ctx: Contexto, args: z.infer<typeof ArgsAgreg
       ? ctx.carrito.map((i) => (i.productoId === p.id ? { ...i, gramos: i.gramos + it.gramos } : i))
       : [...ctx.carrito, { productoId: p.id, gramos: it.gramos }];
     agregados.push({ producto: p.nombre, gramos: formatoGramos(it.gramos) });
+    if (it !== original) ajustados.push(p.nombre);
   }
   if (ctx.carrito.length) ctx.esperandoConfirmacion = true;
-  return { agregados, problemas, carrito: ver_carrito(ctx) };
+  return {
+    agregados,
+    problemas,
+    ...(ajustados.length ? { ajustados, nota: `Lo mínimo por producto son ${MIN_GRAMOS} g: subí a ${MIN_GRAMOS} g ${ajustados.join(", ")}. Díselo al cliente.` } : {}),
+    carrito: ver_carrito(ctx),
+  };
 }
 
 export function quitar_del_carrito(ctx: Contexto, args: z.infer<typeof ArgsQuitar>) {
@@ -102,10 +138,59 @@ export function cambiar_cantidad(ctx: Contexto, args: z.infer<typeof ArgsCambiar
   const enCarrito = ctx.productos.filter((p) => ctx.carrito.some((i) => i.productoId === p.id));
   const r = buscarProducto(args.producto, enCarrito);
   if (r.tipo !== "exacto") return { cambiado: null, nota: "Ese producto no está en el carrito." };
+  if (args.gramos < MIN_GRAMOS) return { cambiado: null, problema: "minimo", nota: `Lo mínimo por producto son ${MIN_GRAMOS} g. Ofrece dejarlo en ${MIN_GRAMOS} g o quitarlo.` };
   if (r.producto.stockGramos < args.gramos) return { cambiado: null, problema: "sin_stock", disponibles: formatoGramos(r.producto.stockGramos) };
   ctx.carrito = ctx.carrito.map((i) => (i.productoId === r.producto.id ? { ...i, gramos: args.gramos } : i));
   ctx.esperandoConfirmacion = true;
   return { cambiado: r.producto.nombre, carrito: ver_carrito(ctx) };
+}
+
+/** Asistente de ventas: qué llevar para un plato. Deja la sugerencia pendiente de aceptar. */
+export function sugerir_para_receta(ctx: Contexto, args: z.infer<typeof ArgsReceta>) {
+  const receta = detectarReceta(args.plato) ?? detectarReceta(`para ${args.plato}`);
+  if (!receta) {
+    return {
+      encontrada: false,
+      nota: "No tengo una receta guardada para ese plato. Sugiere solo productos del catálogo (usa buscar_productos) o pregunta qué condimentos usa.",
+      platos_conocidos: RECETAS.map((r) => r.plato),
+    };
+  }
+  const items: { producto: string; gramos: string; para: string }[] = [];
+  const sugerencia: ItemCarrito[] = [];
+  for (const item of receta.items) {
+    const it = { ...item, gramos: Math.max(MIN_GRAMOS, item.gramos) };
+    const p = ctx.productos.find((x) => x.slug === it.slug);
+    if (!p || p.stockGramos < it.gramos) continue;
+    items.push({ producto: p.nombre, gramos: formatoGramos(it.gramos), para: it.para });
+    sugerencia.push({ productoId: p.id, gramos: it.gramos });
+  }
+  ctx.sugerencia = sugerencia;
+  return { encontrada: true, plato: receta.plato, sugerencia: items, consejo: receta.consejo, siguiente_paso: "Pregunta si se los agregas. Si dice que sí, llama a agregar_sugerencia." };
+}
+
+/** Agrega al carrito la sugerencia pendiente. */
+export function agregar_sugerencia(ctx: Contexto) {
+  if (!ctx.sugerencia.length) return { agregados: [], nota: "No hay ninguna sugerencia pendiente." };
+  const nombres: string[] = [];
+  for (const s of ctx.sugerencia) {
+    const p = ctx.productos.find((x) => x.id === s.productoId);
+    if (!p) continue;
+    const ya = ctx.carrito.find((i) => i.productoId === p.id)?.gramos ?? 0;
+    if (p.stockGramos < ya + s.gramos) continue;
+    ctx.carrito = ya ? ctx.carrito.map((i) => (i.productoId === p.id ? { ...i, gramos: i.gramos + s.gramos } : i)) : [...ctx.carrito, { ...s }];
+    nombres.push(p.nombre);
+  }
+  ctx.sugerencia = [];
+  if (ctx.carrito.length) ctx.esperandoConfirmacion = true;
+  return { agregados: nombres, carrito: ver_carrito(ctx) };
+}
+
+export function abrir_menu(ctx: Contexto, args: z.infer<typeof ArgsMenu>) {
+  ctx.abrirMenu = true;
+  const cats = [...new Set(ctx.productos.map((p) => p.categoria))];
+  const cat = args.categoria ? cats.find((c) => c.toLowerCase().includes(args.categoria!.toLowerCase().slice(0, 4))) : undefined;
+  ctx.categoriaMenu = cat;
+  return { menu_abierto: true, categoria: cat ?? "todas" };
 }
 
 export function vaciar_carrito(ctx: Contexto) {
@@ -149,7 +234,7 @@ export const DEFINICIONES = [
     type: "function" as const,
     function: {
       name: "agregar_al_carrito",
-      description: "Agrega uno o varios productos con sus gramos. Si el cliente dice solo un número ('100 de dandy') son gramos; 'medio kilo' = 500, 'un cuarto' = 250. Pasa el nombre tal como lo dijo el cliente.",
+      description: `Agrega uno o varios productos con sus gramos (mínimo ${MIN_GRAMOS} g por producto). Si el cliente dice solo un número ('100 de dandy') son gramos; 'medio kilo' = 500, 'un cuarto' = 250. Pasa el nombre tal como lo dijo el cliente.`,
       parameters: {
         type: "object",
         properties: {
@@ -189,6 +274,30 @@ export const DEFINICIONES = [
   {
     type: "function" as const,
     function: {
+      name: "sugerir_para_receta",
+      description: "Asistente de ventas: cuando el cliente dice que va a preparar un plato (hallacas, pan de jamón, pollo al horno, torta negra, pasapalos...), devuelve los productos del catálogo que le sirven, con gramos sugeridos.",
+      parameters: { type: "object", properties: { plato: { type: "string" } }, required: ["plato"] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "agregar_sugerencia",
+      description: "Agrega al carrito los productos que sugeriste con sugerir_para_receta, cuando el cliente acepta ('sí', 'dale', 'agrégalos').",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "abrir_menu",
+      description: "Abre el menú táctil en pantalla para que el cliente toque los productos. Úsala cuando no entiendas lo que pide o quiera ver opciones.",
+      parameters: { type: "object", properties: { categoria: { type: "string", description: "opcional: Especias, Maní y frutos secos, Granos y cereales, Dulces y frutas secas" } } },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "confirmar_pedido",
       description: "Cierra y registra el pedido. SOLO después de que el cliente confirme explícitamente ('sí', 'confirmo', 'perfecto') el pedido que ya le mostraste.",
       parameters: { type: "object", properties: {} },
@@ -223,6 +332,16 @@ export async function ejecutarHerramienta(ctx: Contexto, nombre: string, argsJso
     case "cambiar_cantidad": {
       const a = validar(ArgsCambiar);
       return a ? cambiar_cantidad(ctx, a) : { error: "Faltan 'producto' y 'gramos'" };
+    }
+    case "sugerir_para_receta": {
+      const a = validar(ArgsReceta);
+      return a ? sugerir_para_receta(ctx, a) : { error: "Falta 'plato'" };
+    }
+    case "agregar_sugerencia":
+      return agregar_sugerencia(ctx);
+    case "abrir_menu": {
+      const a = validar(ArgsMenu);
+      return abrir_menu(ctx, a ?? {});
     }
     case "ver_carrito":
       return ver_carrito(ctx);

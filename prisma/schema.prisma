@@ -72,3 +72,17 @@ model MovimientoInventario {
   @@index([productoId, creadoEn])
   @@map("movimientos_inventario")
 }
+
+/// Frases que ANA no entendió: se revisan en /admin y se agregan a tests/frases.test.ts
+/// para que el intérprete mejore con cada caso real.
+model ConsultaFallida {
+  id        Int      @id @default(autoincrement())
+  texto     String
+  respuesta String
+  motivo    String
+  canal     String   @default("voz")
+  creadoEn  DateTime @default(now()) @map("creado_en")
+
+  @@index([creadoEn])
+  @@map("consultas_fallidas")
+}

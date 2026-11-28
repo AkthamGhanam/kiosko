@@ -3,22 +3,29 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { fijar, useKiosko } from "@/lib/cliente/store";
-import { comenzar } from "@/lib/cliente/orquestador";
+import { comenzar, prepararVoz } from "@/lib/cliente/orquestador";
 import type { ProductoCliente } from "@/lib/cliente/tipos";
 import { Cabecera } from "./Marca";
-import { Catalogo } from "./Catalogo";
 import { Carrito } from "./Carrito";
 import { BarraEntrada } from "./BarraEntrada";
 import { Burbujas } from "./Burbujas";
 import { IndicadorEstado } from "./IndicadorEstado";
 import { Factura } from "./Factura";
 import { PantallaCarga } from "./PantallaCarga";
+import { Controles } from "./Controles";
+import { MenuProductos } from "./MenuProductos";
+import { TarjetaSugerencia } from "./TarjetaSugerencia";
 
 // La escena 3D solo existe en el navegador
 const Escena = dynamic(() => import("./ana/Escena"), { ssr: false });
 
+/**
+ * Kiosko pensado para hablar: ANA al centro, subtítulos y micrófono abajo.
+ * No hay campo de texto (nadie escribe en un kiosko); con ?teclado=1 aparece para pruebas.
+ */
 export function Kiosko({ productos }: { productos: ProductoCliente[] }) {
   const [iniciado, setIniciado] = useState(false);
+  const [teclado, setTeclado] = useState(false);
   const fase = useKiosko((e) => e.fase);
   const listo = useKiosko((e) => e.avatarListo);
   const proveedor = useKiosko((e) => e.proveedor);
@@ -27,6 +34,11 @@ export function Kiosko({ productos }: { productos: ProductoCliente[] }) {
     fijar({ productos });
   }, [productos]);
 
+  useEffect(() => {
+    setTeclado(new URLSearchParams(window.location.search).has("teclado"));
+    void prepararVoz();
+  }, []);
+
   const empezar = () => {
     if (iniciado) return;
     setIniciado(true);
@@ -34,11 +46,9 @@ export function Kiosko({ productos }: { productos: ProductoCliente[] }) {
   };
 
   return (
-    <main className="fixed inset-0 flex flex-col overflow-hidden bg-crema landscape:flex-row">
-      {/* Escenario de ANA */}
-      <section
-        className={`fondo-escena relative shrink-0 overflow-hidden transition-[height,width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] landscape:h-full ${iniciado ? "h-[44%] landscape:w-[46%]" : "h-full landscape:w-full"}`}
-      >
+    <main className="fixed inset-0 overflow-hidden bg-crema">
+      {/* Escenario de ANA: pantalla completa, ella al centro */}
+      <section className="fondo-escena absolute inset-0">
         <div className="absolute inset-x-0 top-0 z-10">
           <Cabecera
             derecha={
@@ -51,26 +61,37 @@ export function Kiosko({ productos }: { productos: ProductoCliente[] }) {
           />
         </div>
         {/* marca de agua de la tienda detrás de ANA */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-[8%] select-none text-center font-display text-[18vmin] font-semibold leading-none text-tinta/[0.04]">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-[22%] select-none text-center font-display text-[18vmin] font-semibold leading-none text-tinta/[0.04]">
           Especias
         </div>
         <Escena />
-        <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-3 p-4 ${iniciado ? "portrait:top-16 portrait:justify-end portrait:pl-[40%]" : ""}`}>
-          <Burbujas />
-          <IndicadorEstado />
-        </div>
       </section>
 
-      {/* Panel de pedido */}
-      <section className="relative flex min-h-0 flex-1 flex-col rounded-t-[2rem] bg-crema-2/60 pt-4 shadow-[0_-12px_40px_-20px_rgba(42,29,21,0.35)] landscape:rounded-none landscape:pt-6">
-        <div className="flex items-baseline justify-between px-5 pb-2">
-          <h2 className="font-display text-2xl font-semibold">¿Qué vas a llevar?</h2>
-          <span className="text-xs text-tinta-2">Precios por kilo · se cobra al gramo</span>
-        </div>
-        <Catalogo />
-        <Carrito />
-        <BarraEntrada />
-      </section>
+      {/* velo suave abajo para que subtítulos y botones se lean sobre ANA */}
+      {iniciado && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-[15] h-[30%] bg-gradient-to-t from-crema via-crema/75 to-transparent" />}
+
+      {/* Conversación y controles, encima de la escena */}
+      {iniciado && (
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-20 mx-auto flex max-w-2xl flex-col"
+        >
+          <div className="flex flex-col items-center gap-3 px-4 pb-3">
+            <Burbujas />
+            <IndicadorEstado />
+            <TarjetaSugerencia />
+          </div>
+          <Carrito ocultarVacio />
+          <div className="pointer-events-auto">
+            {teclado && <BarraEntrada />}
+            <Controles />
+          </div>
+        </motion.div>
+      )}
+
+      <MenuProductos />
 
       <AnimatePresence>{fase === "factura" && <Factura />}</AnimatePresence>
 

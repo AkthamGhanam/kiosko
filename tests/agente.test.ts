@@ -36,23 +36,24 @@ describe("ANA sin IA (intérprete local)", () => {
   it("recorre el guion de la demo de punta a punta", async () => {
     const r1 = await responder(cuerpo({ mensaje: GUION, canal: "voz" }), await productos());
     expect(r1.proveedor).toBe("local");
-    expect(r1.respuesta).toBe("Perfecto, tu pedido está listo. ¿Me lo confirmas?");
+    // el guion pide 50 g de paprika: la regla del mínimo lo sube a 100 g y ANA lo dice
+    expect(r1.respuesta).toBe("Te puse 100 gramos de paprika, es el mínimo. ¿Te lo confirmo?");
     expect(r1.carrito).toHaveLength(4);
     expect(r1.esperandoConfirmacion).toBe(true);
 
     const r2 = await responder(cuerpo({ mensaje: "Perfecto", carrito: r1.carrito, esperandoConfirmacion: true, canal: "voz" }), await productos());
     expect(r2.factura?.lineas).toHaveLength(4);
-    // 120 g x 3.20 + 100 g x 9.50 + 50 g x 14.00 + 100 g x 7.80 = 0.38 + 0.95 + 0.70 + 0.78
-    expect(r2.factura?.totalCents).toBe(281);
-    expect(r2.respuesta).toContain("El total es $2.81");
-    expect(r2.respuesta).toContain("Banesco");
-    expect(r2.respuesta).toContain("0414-4141368");
-    expect(r2.respuesta).toContain("82.218.399");
-    expect(r2.respuesta).toContain("pasa con la cajera");
+    // 120 g x 3.20 + 100 g x 9.50 + 100 g x 14.00 + 100 g x 7.80 = 0.38 + 0.95 + 1.40 + 0.78
+    expect(r2.factura?.totalCents).toBe(351);
+    expect(r2.respuesta).toContain("el total es $3.51");
+    // los datos de pago no se dicen en voz alta: salen en la factura
+    expect(r2.respuesta).toContain("factura");
+    expect(r2.respuesta).not.toContain("Banesco");
+    expect(r2.respuesta).not.toContain("0414");
     expect(r2.carrito).toEqual([]);
     expect(await stock("avena")).toBe(8000 - 120);
     expect(await stock("mani-dandy")).toBe(5000 - 100);
-    expect(await stock("paprika")).toBe(2500 - 50);
+    expect(await stock("paprika")).toBe(2500 - 100);
     expect(await stock("mani-salado")).toBe(6000 - 100);
   });
 
@@ -82,6 +83,45 @@ describe("ANA sin IA (intérprete local)", () => {
     const r2 = await responder(cuerpo({ mensaje: "quita el comino", carrito: r1.carrito, esperandoConfirmacion: true }), await productos());
     expect(r2.carrito).toHaveLength(1);
     expect(r2.respuesta).toMatch(/Quité comino/);
+  });
+});
+
+describe("ANA asistente de ventas y sin la r", () => {
+  it("recomienda condimentos para hallacas y los agrega al decir que sí", async () => {
+    const r1 = await responder(cuerpo({ mensaje: "quiero hacer hallacas" }), await productos());
+    expect(r1.respuesta).toMatch(/hallacas/);
+    expect(r1.respuesta).toMatch(/onoto/);
+    expect(r1.sugerencia.length).toBeGreaterThanOrEqual(4);
+    expect(r1.carrito).toEqual([]);
+    const r2 = await responder(cuerpo({ mensaje: "sí, agrégalos", sugerencia: r1.sugerencia }), await productos());
+    expect(r2.carrito).toHaveLength(r1.sugerencia.length);
+    expect(r2.sugerencia).toEqual([]);
+    expect(r2.esperandoConfirmacion).toBe(true);
+  });
+
+  it("si rechaza la sugerencia no agrega nada", async () => {
+    const r1 = await responder(cuerpo({ mensaje: "voy a hacer pollo al horno" }), await productos());
+    const r2 = await responder(cuerpo({ mensaje: "no, gracias", sugerencia: r1.sugerencia }), await productos());
+    expect(r2.carrito).toEqual([]);
+  });
+
+  it("abre el menú cuando no entiende", async () => {
+    const r = await responder(cuerpo({ mensaje: "asdf qwerty" }), await productos());
+    expect(r.abrirMenu).toBe(true);
+    expect(r.respuesta).toMatch(/menú/);
+  });
+
+  it("abre el menú en la categoría cuando hay varias opciones", async () => {
+    const r = await responder(cuerpo({ mensaje: "100 de maní" }), await productos());
+    expect(r.abrirMenu).toBe(true);
+    expect(r.categoriaMenu).toBeTruthy();
+  });
+
+  it("toma el pedido del guion dicho sin r", async () => {
+    const r1 = await responder(cuerpo({ mensaje: "Hola Ana, quielo pedil ciento veinte gamos de avena, cien de dandy, cincuenta de papika y cien de maní salado", canal: "voz" }), await productos());
+    expect(r1.carrito).toHaveLength(4);
+    const r2 = await responder(cuerpo({ mensaje: "pefecto", carrito: r1.carrito, esperandoConfirmacion: true, canal: "voz" }), await productos());
+    expect(r2.factura?.totalCents).toBe(351);
   });
 });
 
@@ -137,5 +177,55 @@ describe("ANA con IA (proveedor simulado)", () => {
     const r = await responder(cuerpo({ mensaje: "avena" }), await productos());
     expect(r.carrito).toEqual([]);
     expect(r.respuesta).toBe("¿Cuántos gramos quieres?");
+  });
+});
+
+describe("ANA consejera", () => {
+  const h = (texto: string) => [{ rol: "ana" as const, texto }];
+  it("responde qué condimentos lleva la hallaca, aunque lo digan sin r", async () => {
+    for (const m of ["¿Qué condimentos necesito para la hallaca?", "que le echo a las ayacas", "quielo hacel hayacas pala navidad"]) {
+      const r = await responder(cuerpo({ mensaje: m }), await productos());
+      expect(r.respuesta, m).toMatch(/hallacas.*onoto/);
+      expect(r.sugerencia.length, m).toBeGreaterThan(0);
+    }
+  });
+
+  it("aconseja para platos comunes", async () => {
+    const casos: [string, RegExp][] = [
+      ["¿Qué condimento le echo a la calne?", /carne/],
+      ["necesito ayuda con algo para el pescado", /pescado/],
+      ["qué le pongo a las caraotas", /caraotas/],
+    ];
+    for (const [m, rx] of casos) {
+      const r = await responder(cuerpo({ mensaje: m }), await productos());
+      expect(r.respuesta, m).toMatch(rx);
+      expect(r.abrirMenu, m).toBe(false);
+    }
+  });
+
+  it("explica para qué sirve un producto y cuál pica", async () => {
+    const r1 = await responder(cuerpo({ mensaje: "para qué sirve la linaza" }), await productos());
+    expect(r1.respuesta).toMatch(/Linaza se usa/);
+    const r2 = await responder(cuerpo({ mensaje: "como se usa la paplika" }), await productos());
+    expect(r2.respuesta).toMatch(/Paprika se usa/);
+    const r3 = await responder(cuerpo({ mensaje: "cuál es más picante" }), await productos());
+    expect(r3.respuesta).toMatch(/pimienta negra/);
+  });
+
+  it("si pide un consejo sin plato, pregunta qué va a cocinar sin abrir el menú", async () => {
+    const r = await responder(cuerpo({ mensaje: "hola ana, qué me recomiendas" }), await productos());
+    expect(r.respuesta).toMatch(/Qué vas a cocinar/);
+    expect(r.abrirMenu).toBe(false);
+  });
+
+  it("no da consejos de salud", async () => {
+    const r = await responder(cuerpo({ mensaje: "tienes algo para la gripe" }), await productos());
+    expect(r.respuesta).toMatch(/médico/);
+  });
+
+  it("recuerda de qué producto hablaban cuando solo dicen la cantidad", async () => {
+    const r = await responder(cuerpo({ mensaje: "doscientos", historial: h("Comino molido se usa para guisos. ¿Cuántos gramos te pongo?") }), await productos());
+    expect(r.carrito).toHaveLength(1);
+    expect(r.carrito[0].gramos).toBe(200);
   });
 });

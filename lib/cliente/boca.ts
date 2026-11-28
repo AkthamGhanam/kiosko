@@ -7,6 +7,8 @@
 //     así que se avanza por el texto a la velocidad estimada de habla y se
 //     resincroniza con cada evento `boundary` (palabra) cuando el navegador lo emite.
 //  2. Audio (TTS que devuelve audio): amplitud real con AnalyserNode de Web Audio.
+//  3. Audio + alineación (ElevenLabs with-timestamps): la forma de la boca sale de la
+//     letra que suena en ese instante y la apertura, de la amplitud real.
 
 export type Visemas = { aa: number; ih: number; ou: number; ee: number; oh: number };
 
@@ -19,7 +21,7 @@ const VOCAL: Record<string, keyof Visemas> = { a: "aa", á: "aa", e: "ee", é: "
 const CERRADAS = new Set(["m", "b", "p"]);
 
 let raf = 0;
-let fuente: "texto" | "audio" | null = null;
+let fuente: "texto" | "audio" | "alineada" | null = null;
 
 // --- fuente texto ---
 let texto = "";
@@ -94,10 +96,62 @@ export function iniciarBocaAudio(nodo: AnalyserNode) {
   raf = requestAnimationFrame(pasoAudio);
 }
 
+// --- fuente audio + alineación por carácter ---
+export type Alineacion = { characters: string[]; character_start_times_seconds: number[]; character_end_times_seconds: number[] };
+let alin: Alineacion | null = null;
+let reloj: () => number = () => 0;
+let cursor = 0;
+
+function nivelAudio() {
+  if (!analizador || !datos) return 1;
+  analizador.getByteTimeDomainData(datos);
+  let suma = 0;
+  for (let k = 0; k < datos.length; k++) {
+    const x = (datos[k] - 128) / 128;
+    suma += x * x;
+  }
+  return Math.min(1, Math.sqrt(suma / datos.length) * 7);
+}
+
+function pasoAlineado() {
+  if (!alin) return;
+  const t = reloj();
+  const { characters: c, character_start_times_seconds: ini, character_end_times_seconds: fin } = alin;
+  while (cursor < c.length - 1 && fin[cursor] < t) cursor++;
+  const v: Visemas = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+  const nivel = nivelAudio();
+  if (cursor < c.length && t >= ini[cursor] - 0.02 && t <= fin[cursor] + 0.02) {
+    const ch = c[cursor].toLowerCase();
+    const dur = Math.max(0.03, fin[cursor] - ini[cursor]);
+    const env = Math.sin(Math.min(1, Math.max(0, (t - ini[cursor]) / dur)) * Math.PI);
+    const abre = 0.35 + 0.65 * Math.max(nivel, 0.4);
+    if (VOCAL[ch]) v[VOCAL[ch]] = (0.5 + 0.45 * env) * abre;
+    else if (!CERRADAS.has(ch) && /[a-zñ]/.test(ch)) v.aa = 0.2 * env * abre;
+  }
+  boca.visemas = v;
+  raf = requestAnimationFrame(pasoAlineado);
+}
+
+/** `ahora` devuelve los segundos de audio reproducidos. */
+export function iniciarBocaAlineada(a: Alineacion, ahora: () => number, nodo?: AnalyserNode) {
+  detenerBoca();
+  fuente = "alineada";
+  alin = a;
+  reloj = ahora;
+  cursor = 0;
+  if (nodo) {
+    analizador = nodo;
+    datos = new Uint8Array(new ArrayBuffer(nodo.fftSize));
+  }
+  boca.hablando = true;
+  raf = requestAnimationFrame(pasoAlineado);
+}
+
 export function detenerBoca() {
   cancelAnimationFrame(raf);
   fuente = null;
   analizador = null;
+  alin = null;
   boca.hablando = false;
   limpiar();
 }

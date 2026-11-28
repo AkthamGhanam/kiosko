@@ -71,3 +71,47 @@ describe("búsqueda difusa", () => {
     expect(r.tipo).toBe("ninguno");
   });
 });
+
+describe("entiende a quien no pronuncia la r", () => {
+  it("encuentra productos dichos sin r o con l", () => {
+    expect(slugDe("papika")).toBe("paprika");
+    expect(slugDe("oégano")).toBe("oregano");
+    expect(slugDe("olegano")).toBe("oregano");
+    expect(slugDe("meley")).toBe("merey");
+    expect(slugDe("almendlas")).toBe("almendras");
+    expect(slugDe("pimienta nega")).toBe("pimienta-negra");
+  });
+
+  it("entiende cantidades y confirmaciones sin r", () => {
+    expect(interpretarPedido("tescientos glamos de comino")).toEqual([{ texto: "comino", gramos: 300 }]);
+    expect(detectarIntencion("pefecto", true)).toBe("confirmar");
+    expect(detectarIntencion("confimo", true)).toBe("confirmar");
+    expect(detectarIntencion("clalo que sí", true)).toBe("confirmar");
+  });
+});
+
+describe("recetas", () => {
+  it("reconoce el plato aunque lo digan distinto", async () => {
+    const { detectarReceta } = await import("@/lib/recetas");
+    expect(detectarReceta("quiero hacer hallacas")?.plato).toBe("hallacas");
+    expect(detectarReceta("voy a prepalar allacas")?.plato).toBe("hallacas");
+    expect(detectarReceta("un pabeyon criollo")?.plato).toBe("carne mechada");
+    expect(detectarReceta("pan de jamón para navidad")?.plato).toBe("pan de jamón");
+    expect(detectarReceta("100 de avena")).toBeNull();
+  });
+
+  it("solo sugiere productos que existen en el catálogo", async () => {
+    const { RECETAS } = await import("@/lib/recetas");
+    const slugs = new Set(CATALOGO.map((p) => p.slug));
+    for (const r of RECETAS) for (const i of r.items) expect(slugs.has(i.slug), `${r.plato}: ${i.slug}`).toBe(true);
+  });
+});
+
+describe("transcripción", () => {
+  it("quita marcas de ruido del entorno", async () => {
+    const { limpiarTranscripcion } = await import("@/lib/vozServidor");
+    expect(limpiarTranscripcion("(música de fondo) quiero 100 de comino [risas]")).toBe("quiero 100 de comino");
+    expect(limpiarTranscripcion("(ruido)")).toBe("");
+    expect(limpiarTranscripcion(" . ")).toBe("");
+  });
+});

@@ -1,15 +1,17 @@
 "use client";
 // Orquesta la experiencia: conversación, carrito, voz, animaciones de ANA y factura.
 import { agregarMensaje, fijar, obtener } from "./store";
-import { VozNavegador, escuchar, microfonoSoportado, type MotorVoz } from "./voz";
+import { VozElevenLabs, VozNavegador, audioCtx, escuchar, escucharGrabando, grabacionSoportada, microfonoSoportado, type MotorVoz } from "./voz";
 import type { FacturaCliente, ProductoCliente, RespuestaAna } from "./tipos";
-import { TIENDA, frasePago } from "../config";
+import { MIN_GRAMOS, frasePago } from "../config";
 import { formatoDinero, formatoGramos } from "../dinero";
 
 let voz: MotorVoz | null = null;
 let ultimoCanal: "voz" | "texto" | "tactil" = "tactil";
 let detenerEscucha: (() => void) | null = null;
 let turno = 0; // invalida respuestas viejas al reiniciar
+let cfgVoz: { tts: "elevenlabs" | "navegador"; stt: "elevenlabs" | "groq" | "navegador" } = { tts: "navegador", stt: "navegador" };
+let vozLista: Promise<void> | null = null;
 
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -17,6 +19,27 @@ function motor() {
   if (!voz) voz = new VozNavegador();
   return voz;
 }
+
+/** Al cargar la página: pregunta al servidor qué voz hay (ElevenLabs o la del navegador)
+ * y deja el saludo generado para que ANA hable sin espera al primer toque. */
+export function prepararVoz() {
+  vozLista ??= (async () => {
+    try {
+      const res = await fetch("/api/voz", { cache: "no-store", signal: AbortSignal.timeout(3000) });
+      if (res.ok) cfgVoz = await res.json();
+    } catch {
+      /* sin servidor de voz: navegador */
+    }
+    if (cfgVoz.tts === "elevenlabs" && !voz) {
+      const v = new VozElevenLabs();
+      v.precargar(SALUDO);
+      voz = v;
+    }
+  })();
+  return vozLista;
+}
+
+const usarGrabacion = () => cfgVoz.stt !== "navegador" && grabacionSoportada();
 
 export async function decir(texto: string) {
   agregarMensaje("ana", texto);
@@ -29,18 +52,29 @@ export async function decir(texto: string) {
   }
 }
 
-const SALUDO = `¡Hola! Soy ANA, bienvenido a ${TIENDA.nombre}. Dime qué quieres llevar y cuántos gramos, o toca los productos en pantalla.`;
+const SALUDO = `¡Hola, soy ANA! ¿Qué te pongo hoy?`;
 
 /** Primer toque del cliente: desbloquea audio y micrófono, y ANA saluda. */
 export async function comenzar() {
-  fijar({ microfonoDisponible: microfonoSoportado() });
-  motor(); // crea el motor dentro del gesto del usuario (requisito de los navegadores)
+  audioCtx(); // se desbloquea el audio dentro del gesto del usuario (requisito de los navegadores)
+  const listo = prepararVoz();
+  motor();
   if (obtener().animAna === "fuera") {
     fijar({ animAna: "entrar" });
     await esperar(1400);
   }
+  await listo;
+  fijar({ microfonoDisponible: usarGrabacion() || microfonoSoportado() });
   saludar();
   await decir(SALUDO);
+  escucharSiPregunta(SALUDO);
+}
+
+/** En el kiosko nadie escribe: si ANA terminó con una pregunta, vuelve a escuchar sola. */
+function escucharSiPregunta(frase: string, miTurno = turno) {
+  const e = obtener();
+  if (miTurno !== turno || !e.microfonoDisponible || ultimoCanal === "tactil" || e.fase !== "pedido") return;
+  if (/\?\s*$/.test(frase) && e.estadoAna === "reposo") iniciarEscucha();
 }
 
 /** El saludo con la mano dura lo mismo aunque la voz falle o sea muy corta. */
@@ -68,6 +102,7 @@ export async function enviarMensaje(texto: string, canal: "voz" | "texto") {
         canal,
         carrito: e.carrito,
         esperandoConfirmacion: e.esperandoConfirmacion,
+        sugerencia: e.sugerencia,
         historial: e.mensajes.slice(-10).map((m) => ({ rol: m.rol, texto: m.texto })),
       }),
     });
@@ -76,7 +111,7 @@ export async function enviarMensaje(texto: string, canal: "voz" | "texto") {
   } catch {
     if (miTurno !== turno) return;
     fijar({ estadoAna: "reposo" });
-    await decir("Disculpa, tuve un problema de conexión. ¿Me lo repites o lo tocas en pantalla?");
+    await decir("Perdí la conexión. ¿Me lo repites?");
     return;
   }
   if (miTurno !== turno) return;
@@ -87,6 +122,9 @@ export async function enviarMensaje(texto: string, canal: "voz" | "texto") {
     esperandoConfirmacion: r.esperandoConfirmacion,
     ultimoAgregado: nuevo?.productoId ?? null,
     proveedor: r.proveedor,
+    sugerencia: r.sugerencia ?? [],
+    // si ANA no entendió o hay varias opciones, se abre el menú para que el cliente toque
+    ...(r.abrirMenu ? { menuAbierto: true, categoriaMenu: r.categoriaMenu ?? null } : nuevo ? { menuAbierto: false } : {}),
     // si ANA armó el pedido por voz/texto, se despliega el detalle para que el cliente lo revise
     carritoAbierto: nuevo && r.carrito.length > 1 ? true : obtener().carritoAbierto,
   });
@@ -95,10 +133,38 @@ export async function enviarMensaje(texto: string, canal: "voz" | "texto") {
     return;
   }
   await decir(r.respuesta);
-  // si el cliente habló por voz, ANA vuelve a escuchar sola cuando hace una pregunta
-  if (ultimoCanal === "voz" && obtener().microfonoDisponible && /\?\s*$/.test(r.respuesta) && miTurno === turno) {
-    iniciarEscucha();
-  }
+  escucharSiPregunta(r.respuesta, miTurno);
+}
+
+// ---------- sugerencias de receta y menú ----------
+export function aceptarSugerencia() {
+  const { sugerencia } = obtener();
+  if (!sugerencia.length) return;
+  ultimoCanal = "tactil";
+  detenerEscucha?.();
+  fijar((e) => {
+    const carrito = [...e.carrito];
+    for (const s of sugerencia) {
+      const i = carrito.findIndex((c) => c.productoId === s.productoId);
+      if (i >= 0) carrito[i] = { ...carrito[i], gramos: carrito[i].gramos + s.gramos };
+      else carrito.push({ ...s });
+    }
+    return { carrito, sugerencia: [], esperandoConfirmacion: true, ultimoAgregado: sugerencia[0].productoId, carritoAbierto: true };
+  });
+  void decir("Listo, agregados. ¿Te lo confirmo?");
+}
+
+export function rechazarSugerencia() {
+  fijar({ sugerencia: [] });
+  ultimoCanal = "tactil";
+  void decir("Dale. ¿Qué más te pongo?");
+}
+
+export function abrirMenu(categoria: string | null = null) {
+  fijar({ menuAbierto: true, categoriaMenu: categoria });
+}
+export function cerrarMenu() {
+  fijar({ menuAbierto: false, categoriaMenu: null });
 }
 
 // ---------- táctil ----------
@@ -112,13 +178,14 @@ export function agregarTactil(p: ProductoCliente, gramos: number) {
     return { carrito, esperandoConfirmacion: true, ultimoAgregado: p.id };
   });
   if (obtener().estadoAna !== "hablando") {
-    void decir(`Listo, agregué ${formatoGramos(gramos)} de ${p.nombre.toLowerCase()}. ¿Algo más?`);
+    void decir("¿Algo más?");
   }
 }
 
 export function cambiarGramos(productoId: number, gramos: number) {
   fijar((e) => ({
-    carrito: gramos <= 0 ? e.carrito.filter((i) => i.productoId !== productoId) : e.carrito.map((i) => (i.productoId === productoId ? { ...i, gramos } : i)),
+    // por debajo del mínimo de la tienda, la línea se quita
+    carrito: gramos < MIN_GRAMOS ? e.carrito.filter((i) => i.productoId !== productoId) : e.carrito.map((i) => (i.productoId === productoId ? { ...i, gramos } : i)),
   }));
   if (!obtener().carrito.length) fijar({ esperandoConfirmacion: false });
 }
@@ -164,7 +231,7 @@ async function cerrarConFactura(factura: FacturaCliente, frase: string) {
   await decir(frase || frasePago(formatoDinero(factura.totalCents)));
   if (miTurno !== turno) return;
   fijar({ animAna: "salir" });
-  await esperar(1900);
+  await esperar(1200);
   if (miTurno !== turno) return;
   fijar({ fase: "factura", animAna: "fuera" });
 }
@@ -173,10 +240,14 @@ export async function nuevoPedido() {
   turno++;
   motor().callar();
   detenerEscucha?.();
-  fijar({ fase: "pedido", factura: null, carrito: [], esperandoConfirmacion: false, mensajes: [], ultimoAgregado: null, estadoAna: "reposo", animAna: "entrar" });
+  fijar({ fase: "pedido", factura: null, carrito: [], esperandoConfirmacion: false, mensajes: [], ultimoAgregado: null, estadoAna: "reposo", animAna: "entrar", sugerencia: [], menuAbierto: false, categoriaMenu: null });
+  const miTurno = turno;
   await esperar(1500);
   saludar();
-  await decir("¡Hola de nuevo! ¿Qué te preparo esta vez?");
+  const frase = "¡Hola! ¿Qué te pongo?";
+  await decir(frase);
+  ultimoCanal = "voz";
+  escucharSiPregunta(frase, miTurno);
 }
 
 export async function refrescarProductos() {
@@ -187,6 +258,14 @@ export async function refrescarProductos() {
 }
 
 // ---------- micrófono ----------
+const sinMicrofono = (err: string) => {
+  if (err === "not-allowed" || err === "service-not-allowed" || err === "no_soportado") {
+    fijar({ microfonoDisponible: false });
+    agregarMensaje("ana", "No tengo acceso al micrófono. Toca los productos en el menú.");
+    abrirMenu();
+  }
+};
+
 export function iniciarEscucha() {
   if (obtener().estadoAna === "escuchando") {
     detenerEscucha?.();
@@ -194,18 +273,34 @@ export function iniciarEscucha() {
   }
   motor().callar();
   fijar({ estadoAna: "escuchando", textoParcial: "" });
+  const fin = () => {
+    detenerEscucha = null;
+    fijar((e) => (e.estadoAna === "escuchando" || (e.estadoAna === "pensando" && !enviando) ? { estadoAna: "reposo", textoParcial: "", nivelMic: 0 } : { nivelMic: 0 }));
+  };
+  if (usarGrabacion()) {
+    detenerEscucha = escucharGrabando({
+      onNivel: (n) => fijar({ nivelMic: n }),
+      onHablando: () => fijar({ textoParcial: "" }),
+      onProcesando: () => fijar({ estadoAna: "pensando", nivelMic: 0 }),
+      onFinal: (t) => {
+        enviando = true;
+        void enviarMensaje(t, "voz").finally(() => (enviando = false));
+      },
+      onFin: fin,
+      onError: (err) => {
+        if (err === "stt") {
+          fijar({ estadoAna: "reposo" });
+          void decir("No te escuché. ¿Me lo repites?").then(() => abrirMenu());
+        } else sinMicrofono(err);
+      },
+    });
+    return;
+  }
   detenerEscucha = escuchar({
     onParcial: (t) => fijar({ textoParcial: t }),
     onFinal: (t) => void enviarMensaje(t, "voz"),
-    onFin: () => {
-      detenerEscucha = null;
-      fijar((e) => (e.estadoAna === "escuchando" ? { estadoAna: "reposo", textoParcial: "" } : {}));
-    },
-    onError: (err) => {
-      if (err === "not-allowed" || err === "service-not-allowed" || err === "no_soportado") {
-        fijar({ microfonoDisponible: false });
-        agregarMensaje("ana", "No tengo acceso al micrófono. Puedes escribirme o tocar los productos.");
-      }
-    },
+    onFin: fin,
+    onError: sinMicrofono,
   });
 }
+let enviando = false;

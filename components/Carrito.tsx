@@ -5,7 +5,7 @@ import { fijar, useKiosko } from "@/lib/cliente/store";
 import { cambiarGramos, confirmarTactil } from "@/lib/cliente/orquestador";
 import { formatoDinero, formatoGramos, subtotalCents } from "@/lib/dinero";
 
-export function Carrito() {
+export function Carrito({ ocultarVacio = false }: { ocultarVacio?: boolean }) {
   const carrito = useKiosko((e) => e.carrito);
   const productos = useKiosko((e) => e.productos);
   const ultimo = useKiosko((e) => e.ultimoAgregado);
@@ -29,8 +29,9 @@ export function Carrito() {
     if (!carrito.length) setAbierto(false);
   }, [carrito, pulso]);
 
+  if (ocultarVacio && !lineas.length) return null;
   return (
-    <div className="relative px-4 pb-3">
+    <div className="pointer-events-auto relative px-4 pb-3">
       {/* detalle expandible */}
       <AnimatePresence>
         {abierto && lineas.length > 0 && (

@@ -3,7 +3,8 @@
 // Interfaz `MotorVoz` para poder cambiar Web Speech por una TTS de mejor calidad
 // (ElevenLabs, Azure, Piper...) sin tocar el resto: basta con otra implementación
 // que reproduzca audio y llame a iniciarBocaAudio(analizador).
-import { detenerBoca, iniciarBocaAudio, iniciarBocaTexto, resincronizarBoca } from "./boca";
+import { detenerBoca, iniciarBocaAlineada, iniciarBocaAudio, iniciarBocaTexto, resincronizarBoca, type Alineacion } from "./boca";
+import { textoParaVoz } from "../vozTexto";
 
 export interface MotorVoz {
   hablar(texto: string): Promise<void>;
@@ -32,15 +33,7 @@ function elegirVoz(): SpeechSynthesisVoice | null {
   return orden[0]?.[1] ?? null;
 }
 
-/** Quita lo que suena raro leído en voz alta. */
-export function textoParaVoz(t: string) {
-  return t
-    .replace(/\$(\d+)\.(\d{2})/g, (_, d, c) => (c === "00" ? `${d} dólares` : `${d} dólares con ${parseInt(c, 10)} centavos`))
-    .replace(/(\d+)\s?g\b/g, "$1 gramos")
-    .replace(/(\d+)\s?kg\b/g, "$1 kilos")
-    .replace(/0414-?(\d{3})(\d{2})(\d{2})/g, "cero cuatro catorce, $1, $2, $3")
-    .replace(/[*_#]/g, "");
-}
+export { textoParaVoz };
 
 export class VozNavegador implements MotorVoz {
   private voz: SpeechSynthesisVoice | null = null;
@@ -68,7 +61,7 @@ export class VozNavegador implements MotorVoz {
         const u = new SpeechSynthesisUtterance(parte);
         u.lang = this.voz?.lang ?? "es-VE";
         if (this.voz) u.voice = this.voz;
-        u.rate = 1.04;
+        u.rate = 1.15;
         u.pitch = 1.08;
         u.onstart = () => iniciarBocaTexto(parte, u.rate);
         u.onboundary = (e) => resincronizarBoca(e.charIndex);
@@ -94,25 +87,102 @@ export class VozNavegador implements MotorVoz {
   }
 }
 
-/** Para una TTS que devuelve audio (mp3/wav): lip sync por amplitud real. */
-export async function reproducirAudioConLipSync(audio: Blob): Promise<void> {
-  const ctx = new AudioContext();
-  const buf = await ctx.decodeAudioData(await audio.arrayBuffer());
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  const an = ctx.createAnalyser();
-  an.fftSize = 1024;
-  src.connect(an);
-  an.connect(ctx.destination);
-  iniciarBocaAudio(an);
-  return new Promise((resolve) => {
-    src.onended = () => {
-      detenerBoca();
-      ctx.close();
-      resolve();
-    };
-    src.start();
-  });
+// ---------- audio compartido ----------
+let ctxAudio: AudioContext | null = null;
+/** Crear (o reanudar) dentro de un toque del cliente: los navegadores lo exigen. */
+export function audioCtx(): AudioContext | null {
+  if (typeof window === "undefined" || !("AudioContext" in window)) return null;
+  if (!ctxAudio) ctxAudio = new AudioContext();
+  if (ctxAudio.state === "suspended") void ctxAudio.resume();
+  return ctxAudio;
+}
+
+function base64ABuffer(b64: string) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+
+/** Voz de ElevenLabs (vía /api/tts). Si falla, habla el navegador para no quedarse muda. */
+export class VozElevenLabs implements MotorVoz {
+  private respaldo = new VozNavegador();
+  private fuente: AudioBufferSourceNode | null = null;
+  private turno = 0;
+  private cache = new Map<string, { audio: string; alineacion: Alineacion | null }>();
+
+  constructor() {
+    audioCtx();
+  }
+
+  private async pedir(texto: string) {
+    const enCache = this.cache.get(texto);
+    if (enCache) return enCache;
+    const res = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto }) });
+    if (!res.ok) throw new Error(`tts ${res.status}`);
+    const j = await res.json();
+    if (this.cache.size > 30) this.cache.clear();
+    this.cache.set(texto, j);
+    return j as { audio: string; alineacion: Alineacion | null };
+  }
+
+  /** Genera de antemano frases fijas (saludo) para que salgan sin espera. */
+  precargar(texto: string) {
+    void this.pedir(texto).catch(() => {});
+  }
+
+  async hablar(texto: string): Promise<void> {
+    this.callar();
+    const miTurno = ++this.turno;
+    const ctx = audioCtx();
+    let datos: { audio: string; alineacion: Alineacion | null };
+    let buf: AudioBuffer;
+    try {
+      if (!ctx) throw new Error("sin AudioContext");
+      datos = await this.pedir(texto);
+      buf = await ctx.decodeAudioData(base64ABuffer(datos.audio));
+    } catch (e) {
+      console.warn("[ANA] ElevenLabs no respondió, uso la voz del navegador", e);
+      if (miTurno !== this.turno) return;
+      return this.respaldo.hablar(texto);
+    }
+    if (miTurno !== this.turno || !ctx) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const an = ctx.createAnalyser();
+    an.fftSize = 1024;
+    src.connect(an);
+    an.connect(ctx.destination);
+    this.fuente = src;
+    const inicio = ctx.currentTime + 0.03;
+    if (datos.alineacion?.characters?.length) iniciarBocaAlineada(datos.alineacion, () => ctx.currentTime - inicio, an);
+    else iniciarBocaAudio(an);
+    return new Promise((resolve) => {
+      src.onended = () => {
+        if (this.fuente === src) {
+          this.fuente = null;
+          detenerBoca();
+        }
+        resolve();
+      };
+      src.start(inicio);
+    });
+  }
+
+  callar() {
+    this.turno++;
+    this.respaldo.callar();
+    if (this.fuente) {
+      const f = this.fuente;
+      this.fuente = null;
+      try {
+        f.stop();
+      } catch {
+        /* ya terminó */
+      }
+    }
+    detenerBoca();
+  }
 }
 
 // ---------- escuchar ----------
@@ -165,4 +235,127 @@ export function escuchar(opts: { onParcial: (t: string) => void; onFinal: (t: st
   };
   r.start();
   return () => r.stop();
+}
+
+// ---------- escuchar con grabación (ElevenLabs Scribe / Groq Whisper) ----------
+export function grabacionSoportada() {
+  return typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window;
+}
+
+let flujoMic: MediaStream | null = null;
+async function microfono() {
+  if (flujoMic && flujoMic.getAudioTracks().some((t) => t.readyState === "live")) return flujoMic;
+  flujoMic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  return flujoMic;
+}
+
+/**
+ * Graba hasta que el cliente deja de hablar (detección de silencio) y manda el audio
+ * a /api/stt. `onNivel` recibe 0..1 para animar la onda.
+ */
+export function escucharGrabando(opts: {
+  onNivel: (n: number) => void;
+  onHablando: () => void;
+  onProcesando: () => void;
+  onFinal: (t: string) => void;
+  onFin: () => void;
+  onError: (e: string) => void;
+}) {
+  let cancelado = false;
+  let parar: () => void = () => {
+    cancelado = true;
+  };
+  (async () => {
+    let flujo: MediaStream;
+    try {
+      flujo = await microfono();
+    } catch (e) {
+      opts.onError((e as DOMException)?.name === "NotAllowedError" ? "not-allowed" : "no_soportado");
+      opts.onFin();
+      return;
+    }
+    if (cancelado) return opts.onFin();
+    const ctx = audioCtx();
+    const tipo = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported(t));
+    const rec = new MediaRecorder(flujo, tipo ? { mimeType: tipo } : undefined);
+    const trozos: Blob[] = [];
+    let habló = false;
+    let ultimaVoz = performance.now();
+    const t0 = performance.now();
+    let raf = 0;
+    let an: AnalyserNode | null = null;
+    let nodo: MediaStreamAudioSourceNode | null = null;
+    if (ctx) {
+      nodo = ctx.createMediaStreamSource(flujo);
+      an = ctx.createAnalyser();
+      an.fftSize = 1024;
+      nodo.connect(an);
+    }
+    const buf = new Uint8Array(new ArrayBuffer(1024));
+    // Ruido del entorno: se mide al empezar y se sigue ajustando mientras nadie habla,
+    // así en una tienda con música o gente conversando no se queda grabando para siempre.
+    let ruido = 0.01;
+    let vozMs = 0; // tiempo acumulado por encima del umbral (descarta golpes y ruidos cortos)
+    let ultimo = performance.now();
+    const vigilar = () => {
+      const ahora = performance.now();
+      const dt = ahora - ultimo;
+      ultimo = ahora;
+      if (an) {
+        an.getByteTimeDomainData(buf);
+        let s = 0;
+        for (let i = 0; i < buf.length; i++) {
+          const x = (buf[i] - 128) / 128;
+          s += x * x;
+        }
+        const rms = Math.sqrt(s / buf.length);
+        const umbral = Math.max(0.018, ruido * 2.2);
+        opts.onNivel(Math.min(1, rms * 8));
+        if (rms > umbral) {
+          vozMs += dt;
+          if (vozMs > 250) {
+            if (!habló) opts.onHablando();
+            habló = true;
+            ultimaVoz = ahora;
+          }
+        } else {
+          vozMs = Math.max(0, vozMs - dt * 0.5);
+          // promedio lento del fondo (solo con silencio relativo)
+          ruido = ahora - t0 < 500 ? Math.max(ruido, rms) : ruido * 0.98 + rms * 0.02;
+          if (habló && rms > umbral * 0.7) ultimaVoz = ahora; // final de palabra suave
+        }
+      } else if (ahora - t0 > 300) {
+        habló = true; // sin analizador: se graba un tramo fijo
+      }
+      const silencio = ahora - ultimaVoz;
+      if ((habló && silencio > 800) || ahora - t0 > 12000 || (!habló && ahora - t0 > 7000)) return terminar();
+      raf = requestAnimationFrame(vigilar);
+    };
+    const terminar = () => {
+      cancelAnimationFrame(raf);
+      if (rec.state !== "inactive") rec.stop();
+    };
+    parar = terminar;
+    rec.ondataavailable = (e) => e.data.size && trozos.push(e.data);
+    rec.onstop = async () => {
+      nodo?.disconnect();
+      opts.onNivel(0);
+      if (cancelado || !habló || !trozos.length) return opts.onFin();
+      opts.onProcesando();
+      try {
+        const f = new FormData();
+        f.append("audio", new Blob(trozos, { type: rec.mimeType || "audio/webm" }), "voz.webm");
+        const res = await fetch("/api/stt", { method: "POST", body: f });
+        const j = res.ok ? await res.json() : null;
+        if (j?.texto) opts.onFinal(j.texto);
+        else if (!res.ok) opts.onError("stt");
+      } catch {
+        opts.onError("stt");
+      }
+      opts.onFin();
+    };
+    rec.start(250);
+    raf = requestAnimationFrame(vigilar);
+  })();
+  return () => parar();
 }

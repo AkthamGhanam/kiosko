@@ -21,6 +21,11 @@ export type EstadoKiosko = {
   vozDisponible: boolean;
   microfonoDisponible: boolean;
   proveedor: string;
+  menuAbierto: boolean;
+  categoriaMenu: string | null;
+  sugerencia: { productoId: number; gramos: number }[];
+  /** 0..1, volumen del micrófono mientras escucha */
+  nivelMic: number;
 };
 
 const inicial: EstadoKiosko = {
@@ -40,6 +45,10 @@ const inicial: EstadoKiosko = {
   vozDisponible: true,
   microfonoDisponible: false,
   proveedor: "",
+  menuAbierto: false,
+  categoriaMenu: null,
+  sugerencia: [],
+  nivelMic: 0,
 };
 
 let estado = inicial;

@@ -151,6 +151,22 @@ export function PanelAdmin({ inicial }: { inicial: Datos }) {
             </section>
 
             <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-arena">
+              <h3 className="font-display text-xl font-semibold">Lo que ANA no entendió</h3>
+              <p className="mt-1 text-xs text-tinta-2">Cada frase se agrega a las pruebas (tests/frases.test.ts) para que ANA la entienda la próxima vez.</p>
+              <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto text-sm">
+                {d.noEntendidas.length === 0 && <li className="text-tinta-2">Nada por ahora.</li>}
+                {d.noEntendidas.map((c) => (
+                  <li key={c.id} className="rounded-2xl bg-crema-2/60 px-3 py-2">
+                    <p className="font-semibold">“{c.texto}”</p>
+                    <p className="text-xs text-tinta-2">
+                      {c.motivo === "ambiguo" ? "Varias opciones" : "No entendió"} · {new Date(c.creadoEn).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-arena">
               <h3 className="font-display text-xl font-semibold">Movimientos</h3>
               <ul className="mt-3 max-h-96 space-y-1.5 overflow-y-auto text-sm">
                 {d.movimientos.map((m) => (

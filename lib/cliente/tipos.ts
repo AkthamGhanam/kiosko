@@ -32,4 +32,9 @@ export type RespuestaAna = {
   factura?: FacturaCliente;
   rechazadas?: { nombre: string; pedidos: number; disponibles: number }[];
   proveedor: string;
+  /** productos que ANA recomendó para una receta y espera que el cliente acepte */
+  sugerencia?: { productoId: number; gramos: number }[];
+  /** ANA no entendió o el producto es ambiguo: se muestra el menú */
+  abrirMenu?: boolean;
+  categoriaMenu?: string;
 };
