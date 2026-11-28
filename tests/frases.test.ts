@@ -184,6 +184,8 @@ const CHARLA: [string, RegExp][] = [
   ["cuéntame un chiste", /vender especias/],
   ["quién ganó el juego", /solo vendo especias/],
   ["estás bella", /Gracias/],
+  ["qué vaina tan mala", /(Disculpa|Perdón)/],
+  ["esta máquina no sirve", /(Disculpa|Perdón)/],
 ];
 
 describe("charla, coloquial y vulgar", () => {

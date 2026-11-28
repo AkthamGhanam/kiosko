@@ -151,7 +151,10 @@ export function PanelAdmin({ inicial }: { inicial: Datos }) {
             </section>
 
             <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-arena">
-              <h3 className="font-display text-xl font-semibold">Lo que ANA no entendió</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-display text-xl font-semibold">Lo que ANA no entendió</h3>
+                {d.noEntendidas.length > 0 && <BotonCopiar texto={d.noEntendidas.map((c) => `${c.texto} -> ${c.respuesta}`).join("\n")} />}
+              </div>
               <p className="mt-1 text-xs text-tinta-2">Cada frase se agrega a las pruebas (tests/frases.test.ts) para que ANA la entienda la próxima vez.</p>
               <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto text-sm">
                 {d.noEntendidas.length === 0 && <li className="text-tinta-2">Nada por ahora.</li>}
@@ -192,5 +195,23 @@ function Dato({ titulo, valor, alerta }: { titulo: string; valor: string; alerta
       <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-tinta-2">{titulo}</p>
       <p className={`tabular mt-1 font-display text-3xl font-semibold ${alerta ? "text-paprika" : ""}`}>{valor}</p>
     </div>
+  );
+}
+
+/** Copia la lista de frases no entendidas para pegarla en el chat y convertirla en pruebas. */
+function BotonCopiar({ texto }: { texto: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        void navigator.clipboard?.writeText(texto).then(() => {
+          setOk(true);
+          setTimeout(() => setOk(false), 1500);
+        });
+      }}
+      className="shrink-0 rounded-full bg-crema-2 px-3 py-1 text-xs font-semibold ring-1 ring-arena"
+    >
+      {ok ? "Copiado" : "Copiar lista"}
+    </button>
   );
 }

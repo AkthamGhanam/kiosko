@@ -9,7 +9,7 @@ export async function obtenerResumen() {
     prisma.pedido.findMany({ orderBy: { id: "desc" }, take: 20, include: { items: true } }),
     prisma.movimientoInventario.findMany({ orderBy: { id: "desc" }, take: 30, include: { producto: { select: { nombre: true } } } }),
     prisma.pedido.aggregate({ where: { creadoEn: { gte: inicioDia } }, _sum: { totalCents: true }, _count: true }),
-    prisma.consultaFallida.findMany({ orderBy: { id: "desc" }, take: 30 }),
+    prisma.consultaFallida.findMany({ orderBy: { id: "desc" }, take: 100 }),
   ]);
   return {
     productos,
