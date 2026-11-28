@@ -37,7 +37,7 @@ describe("ANA sin IA (intérprete local)", () => {
     const r1 = await responder(cuerpo({ mensaje: GUION, canal: "voz" }), await productos());
     expect(r1.proveedor).toBe("local");
     // el guion pide 50 g de paprika: la regla del mínimo lo sube a 100 g y ANA lo dice
-    expect(r1.respuesta).toBe("Lo mínimo que vendemos son 100 gramos, así que te puse 100 de paprika. ¿Te lo confirmo?");
+    expect(r1.respuesta).toBe("Te puse 100 gramos de paprika, es el mínimo. ¿Te lo confirmo?");
     expect(r1.carrito).toHaveLength(4);
     expect(r1.esperandoConfirmacion).toBe(true);
 
@@ -45,11 +45,11 @@ describe("ANA sin IA (intérprete local)", () => {
     expect(r2.factura?.lineas).toHaveLength(4);
     // 120 g x 3.20 + 100 g x 9.50 + 100 g x 14.00 + 100 g x 7.80 = 0.38 + 0.95 + 1.40 + 0.78
     expect(r2.factura?.totalCents).toBe(351);
-    expect(r2.respuesta).toContain("El total es $3.51");
-    expect(r2.respuesta).toContain("Banesco");
-    expect(r2.respuesta).toContain("0414-4141368");
-    expect(r2.respuesta).toContain("82.218.399");
-    expect(r2.respuesta).toContain("pasa con la cajera");
+    expect(r2.respuesta).toContain("el total es $3.51");
+    // los datos de pago no se dicen en voz alta: salen en la factura
+    expect(r2.respuesta).toContain("factura");
+    expect(r2.respuesta).not.toContain("Banesco");
+    expect(r2.respuesta).not.toContain("0414");
     expect(r2.carrito).toEqual([]);
     expect(await stock("avena")).toBe(8000 - 120);
     expect(await stock("mani-dandy")).toBe(5000 - 100);

@@ -34,7 +34,7 @@ Todo está documentado en [`.env.example`](.env.example). Lo principal:
 | `GROQ_API_KEY`, `GROQ_MODEL` | IA principal. Gratis en [console.groq.com](https://console.groq.com/keys). Modelo por defecto `llama-3.3-70b-versatile`. |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | IA de respaldo. Gratis en [aistudio.google.com](https://aistudio.google.com/apikey). Modelo por defecto `gemini-2.0-flash`. |
 | `LLM_PROVEEDORES` | Orden de intento, por defecto `groq,gemini,local`. |
-| `NEXT_PUBLIC_TIENDA_*`, `NEXT_PUBLIC_PAGO_*` | Nombre de la tienda y datos de pago móvil que dice ANA y salen en la factura. |
+| `NEXT_PUBLIC_TIENDA_*`, `NEXT_PUBLIC_PAGO_*` | Nombre de la tienda y datos de pago móvil. Salen en la factura; ANA no los dice en voz alta. |
 | `NEXT_PUBLIC_AVATAR_URL` | Ruta del modelo 3D (por defecto `/models/ana.vrm`). |
 
 Las claves solo se leen en el servidor (`lib/llm.ts`); nunca llegan al navegador.
@@ -109,7 +109,9 @@ ANA usa la mejor voz disponible según las claves que pongas en `.env`. Sin clav
 Si el cliente cuenta qué va a cocinar, ANA recomienda los productos de la tienda que lleva ese plato, con cantidades caseras y un consejo, y aparece una tarjeta con **Agregar todo** o **No, gracias**. Basta con decir *"sí"*.
 
 > Cliente: *"Quiero hacer hallacas."*
-> ANA: *"¡Qué sabroso! Para hallacas te recomiendo onoto, comino molido, ajo en polvo, pimienta negra, pasas y almendras. El onoto es el secreto del color dorado de la masa. ¿Te los agrego?"*
+> ANA: *"Para hallacas: onoto, comino molido, ajo en polvo, pimienta negra, pasas y almendras. ¿Te los agrego?"*
+
+ANA habla poco y rápido, a propósito: frases de una línea, sin repetir lo que dijo el cliente, para atender lo más rápido posible. Hay pruebas que fallan si una respuesta se alarga.
 
 Platos incluidos: hallacas, pan de jamón, torta negra, chocolate caliente, arroz con leche, ponche crema, pollo al horno, carne mechada / pabellón, asado negro, carne asada, pescado, caraotas, sopas, pasta y pizza, ensaladas, papas y verduras, curry, granola casera y pasapalos para una fiesta.
 
@@ -157,14 +159,14 @@ En Vercel el panel `/admin` se actualiza cada 15 segundos en vez de al instante,
 npm test
 ```
 
-120 tests, entre ellos una batería de más de 70 frases reales (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
+126 tests, entre ellos una batería de más de 70 frases reales (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
 
 ## Guion de demo (2 minutos)
 
 1. **(0:00) Bienvenida.** Pantalla vertical con ANA respirando y mirando al frente. Toca "Toca para empezar": ANA saluda con la mano y se presenta.
 2. **(0:15) Pedido por voz.** ANA ya está escuchando (o pulsa el micrófono verde del centro) y di: *"Hola Ana, quiero pedir 120 gr de avena, 100 de dandy, 50 de paprika y otros 100 de maní salado"*. Mientras hablas se ve la onda y tu frase. ANA arma el carrito con animación, se despliega el detalle con gramos y subtotales, y como lo mínimo son 100 g responde: *"Lo mínimo que vendemos son 100 gramos, así que te puse 100 de paprika. ¿Te lo confirmo?"*.
 3. **(0:40) Corrección táctil (opcional).** Sube la avena a 170 g con el botón + del carrito, o toca "Pasas" en el catálogo y agrega 250 g.
-4. **(0:55) Confirmar.** Di *"Perfecto"* o pulsa Confirmar. ANA dice el total y los datos de pago móvil (Banesco 0134, 0414-4141368, CI 82.218.399) o que pases con la cajera.
+4. **(0:55) Confirmar.** Di *"Perfecto"* o pulsa Confirmar. ANA dice solo el total (*"Listo, el total es $3.51. Los datos de pago te salen en la factura."*). Los datos de pago móvil (Banesco 0134, 0414-4141368, CI 82.218.399) y la opción de pagar con tarjeta en caja se ven en la factura.
 5. **(1:10) Salida y factura.** ANA se gira y sale caminando; entra la factura con número de orden, productos, gramos, precio por kg, subtotales, total, fecha, hora y datos de pago.
 6. **(1:25) Inventario en vivo.** En otra pestaña o pantalla, abre `/admin`: el stock de esos productos ya bajó y la fila se ilumina; el pedido aparece arriba. Pulsa "+1 kg" para reponer.
 7. **(1:40) Asistente de ventas.** Pulsa "Nuevo pedido" y di *"quiero hacer hallacas"*: ANA recomienda los condimentos y basta con decir *"sí"*.

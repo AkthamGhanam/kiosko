@@ -61,7 +61,7 @@ export class VozNavegador implements MotorVoz {
         const u = new SpeechSynthesisUtterance(parte);
         u.lang = this.voz?.lang ?? "es-VE";
         if (this.voz) u.voice = this.voz;
-        u.rate = 1.04;
+        u.rate = 1.15;
         u.pitch = 1.08;
         u.onstart = () => iniciarBocaTexto(parte, u.rate);
         u.onboundary = (e) => resincronizarBoca(e.charIndex);
@@ -328,7 +328,7 @@ export function escucharGrabando(opts: {
         habló = true; // sin analizador: se graba un tramo fijo
       }
       const silencio = ahora - ultimaVoz;
-      if ((habló && silencio > 1000) || ahora - t0 > 12000 || (!habló && ahora - t0 > 7000)) return terminar();
+      if ((habló && silencio > 800) || ahora - t0 > 12000 || (!habló && ahora - t0 > 7000)) return terminar();
       raf = requestAnimationFrame(vigilar);
     };
     const terminar = () => {

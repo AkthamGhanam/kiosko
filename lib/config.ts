@@ -13,8 +13,7 @@ export const TIENDA = {
 /** Lo mínimo que se vende de cada producto (gramos). */
 export const MIN_GRAMOS = Number(process.env.NEXT_PUBLIC_MIN_GRAMOS ?? 100) || 100;
 
-/** Frase con los datos de pago tal como ANA los dice (y tal como salen en la factura). */
+/** Lo que ANA dice al cerrar. Los datos de pago no se dicen: se muestran en la factura. */
 export function frasePago(totalTexto: string) {
-  const p = TIENDA.pagoMovil;
-  return `Perfecto. El total es ${totalTexto}. Puedes pagar por pago móvil a estos datos: banco ${p.banco}, teléfono ${p.telefono}, cédula ${p.cedula}. O si prefieres tarjeta, pasa con la cajera.`;
+  return `Listo, el total es ${totalTexto}. Los datos de pago te salen en la factura.`;
 }

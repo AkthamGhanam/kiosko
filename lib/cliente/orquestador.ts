@@ -3,7 +3,7 @@
 import { agregarMensaje, fijar, obtener } from "./store";
 import { VozElevenLabs, VozNavegador, audioCtx, escuchar, escucharGrabando, grabacionSoportada, microfonoSoportado, type MotorVoz } from "./voz";
 import type { FacturaCliente, ProductoCliente, RespuestaAna } from "./tipos";
-import { MIN_GRAMOS, TIENDA, frasePago } from "../config";
+import { MIN_GRAMOS, frasePago } from "../config";
 import { formatoDinero, formatoGramos } from "../dinero";
 
 let voz: MotorVoz | null = null;
@@ -52,7 +52,7 @@ export async function decir(texto: string) {
   }
 }
 
-const SALUDO = `¡Hola! Soy ANA, bienvenido a ${TIENDA.nombre}. Dime qué quieres llevar y cuántos gramos, o cuéntame qué vas a cocinar y te ayudo. ¿Qué te provoca hoy?`;
+const SALUDO = `¡Hola, soy ANA! ¿Qué te pongo hoy?`;
 
 /** Primer toque del cliente: desbloquea audio y micrófono, y ANA saluda. */
 export async function comenzar() {
@@ -111,7 +111,7 @@ export async function enviarMensaje(texto: string, canal: "voz" | "texto") {
   } catch {
     if (miTurno !== turno) return;
     fijar({ estadoAna: "reposo" });
-    await decir("Disculpa, tuve un problema de conexión. ¿Me lo repites o lo tocas en pantalla?");
+    await decir("Perdí la conexión. ¿Me lo repites?");
     return;
   }
   if (miTurno !== turno) return;
@@ -138,7 +138,7 @@ export async function enviarMensaje(texto: string, canal: "voz" | "texto") {
 
 // ---------- sugerencias de receta y menú ----------
 export function aceptarSugerencia() {
-  const { sugerencia, productos } = obtener();
+  const { sugerencia } = obtener();
   if (!sugerencia.length) return;
   ultimoCanal = "tactil";
   detenerEscucha?.();
@@ -151,14 +151,13 @@ export function aceptarSugerencia() {
     }
     return { carrito, sugerencia: [], esperandoConfirmacion: true, ultimoAgregado: sugerencia[0].productoId, carritoAbierto: true };
   });
-  const nombres = sugerencia.map((s) => productos.find((p) => p.id === s.productoId)?.nombre.toLowerCase()).filter(Boolean);
-  void decir(`Listo, te agregué ${nombres.length} productos para tu receta. ¿Te confirmo el pedido o quieres algo más?`);
+  void decir("Listo, agregados. ¿Te lo confirmo?");
 }
 
 export function rechazarSugerencia() {
   fijar({ sugerencia: [] });
   ultimoCanal = "tactil";
-  void decir("Tranquilo. Dime qué más te pongo o búscalo en el menú.");
+  void decir("Dale. ¿Qué más te pongo?");
 }
 
 export function abrirMenu(categoria: string | null = null) {
@@ -179,7 +178,7 @@ export function agregarTactil(p: ProductoCliente, gramos: number) {
     return { carrito, esperandoConfirmacion: true, ultimoAgregado: p.id };
   });
   if (obtener().estadoAna !== "hablando") {
-    void decir(`Listo, agregué ${formatoGramos(gramos)} de ${p.nombre.toLowerCase()}. ¿Algo más?`);
+    void decir("¿Algo más?");
   }
 }
 
@@ -232,7 +231,7 @@ async function cerrarConFactura(factura: FacturaCliente, frase: string) {
   await decir(frase || frasePago(formatoDinero(factura.totalCents)));
   if (miTurno !== turno) return;
   fijar({ animAna: "salir" });
-  await esperar(1900);
+  await esperar(1200);
   if (miTurno !== turno) return;
   fijar({ fase: "factura", animAna: "fuera" });
 }
@@ -245,7 +244,7 @@ export async function nuevoPedido() {
   const miTurno = turno;
   await esperar(1500);
   saludar();
-  const frase = "¡Hola de nuevo! ¿Qué te preparo esta vez?";
+  const frase = "¡Hola! ¿Qué te pongo?";
   await decir(frase);
   ultimoCanal = "voz";
   escucharSiPregunta(frase, miTurno);
@@ -291,7 +290,7 @@ export function iniciarEscucha() {
       onError: (err) => {
         if (err === "stt") {
           fijar({ estadoAna: "reposo" });
-          void decir("Disculpa, no te escuché bien. ¿Me lo repites o lo buscas en el menú?").then(() => abrirMenu());
+          void decir("No te escuché. ¿Me lo repites?").then(() => abrirMenu());
         } else sinMicrofono(err);
       },
     });

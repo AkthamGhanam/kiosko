@@ -121,7 +121,9 @@ describe("asistente de ventas: recomienda por plato", () => {
   for (const [frase, plato] of RECETAS) {
     it(frase, async () => {
       const r = await pedir(frase);
-      expect(r.respuesta).toContain(`Para ${plato}`);
+      expect(r.respuesta).toContain(`Para ${plato}:`);
+      // respuestas cortas: se dicen en voz alta y el cliente quiere ir rápido
+      expect(r.respuesta.split(" ").length).toBeLessThanOrEqual(22);
       expect(r.sugerencia.length).toBeGreaterThan(0);
       // la regla del mínimo también aplica a lo que recomienda
       for (const s of r.sugerencia) expect(s.gramos).toBeGreaterThanOrEqual(100);
@@ -136,7 +138,7 @@ const CONSEJOS: [string, RegExp][] = [
   ["como uso la paplika", /Paprika se usa/],
   ["con qué se come el merey", /Merey se usa/],
   ["cuál es más picante", /pimienta negra/],
-  ["algo que no pique", /no pique/],
+  ["algo que no pique", /Sin picante/],
   ["qué me recomiendas", /Qué vas a cocinar/],
   ["ayúdame, no sé qué llevar", /Qué vas a cocinar/],
   ["hola ana, dame un consejo", /Qué vas a cocinar/],
@@ -150,6 +152,15 @@ describe("consejos y preguntas", () => {
     it(frase, async () => {
       const r = await pedir(frase);
       expect(r.respuesta).toMatch(rx);
+    });
+  }
+});
+
+describe("ANA habla poco y va al grano", () => {
+  for (const frase of ["dame 100 de pasas", "para qué sirve la linaza", "qué me recomiendas", "asdf qwerty", "hola ana", "cuál es más picante"]) {
+    it(frase, async () => {
+      const r = await pedir(frase);
+      expect(r.respuesta.split(" ").length, r.respuesta).toBeLessThanOrEqual(18);
     });
   }
 });

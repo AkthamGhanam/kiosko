@@ -26,7 +26,7 @@ export async function sintetizar(texto: string): Promise<{ audio: string; alinea
       text: textoParaVoz(texto).slice(0, 800),
       model_id: env("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
       language_code: "es",
-      voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.15, use_speaker_boost: true, speed: Number(env("ELEVENLABS_VELOCIDAD", "1.05")) },
+      voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.15, use_speaker_boost: true, speed: Number(env("ELEVENLABS_VELOCIDAD", "1.15")) },
     }),
     signal: AbortSignal.timeout(15000),
   });
