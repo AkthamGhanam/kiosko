@@ -1,15 +1,16 @@
 // ANA sin IA: intérprete local de reglas. Es el respaldo cuando no hay claves o la IA falla.
-import { detectarIntencion, interpretarPedido, productoMencionado, aceptaSugerencia } from "../interpretar";
+import { detectarIntencion, interpretarPedido, productoMencionado, aceptaSugerencia, cantidadSuelta, esAgregado, esCambio, esNegativa, pideDeTodo } from "../interpretar";
 import { buscarProducto } from "../buscar";
-import { formatoDinero } from "../dinero";
+import { formatoDinero, formatoGramos } from "../dinero";
 import { MIN_GRAMOS } from "../config";
-import { detectarReceta } from "../recetas";
+import { detectarReceta, quiereCocinar } from "../recetas";
 import { INFO, pideConsejo, preguntaPicante, preguntaSalud, preguntaUso } from "../consejos";
 import { fonetica } from "../texto";
 import { responderCharla } from "../charla";
 import {
   agregar_al_carrito,
   agregar_sugerencia,
+  cambiar_cantidad,
   confirmar_pedido,
   quitar_del_carrito,
   sugerir_para_receta,
@@ -71,6 +72,33 @@ function responderConsejo(ctx: Contexto, mensaje: string): string | null {
   return null;
 }
 
+/** Aplica una cantidad dicha sin producto al producto nombrado, o al último del pedido. */
+function ajustarCantidad(ctx: Contexto, mensaje: string, gramos: number): string {
+  const nombrado = productoEnTexto(ctx, mensaje);
+  const ultimo = ctx.carrito.length ? ctx.productos.find((p) => p.id === ctx.carrito[ctx.carrito.length - 1].productoId) : undefined;
+  const enPedido = nombrado && ctx.carrito.some((i) => i.productoId === nombrado.id) ? nombrado : undefined;
+  const destino = nombrado ?? (esAgregado(mensaje) || esCambio(mensaje) ? ultimo : undefined);
+  if (!destino) {
+    abrirMenu(ctx);
+    return `¿De qué producto quieres ${formatoGramos(Math.max(gramos, MIN_GRAMOS))}? Tócalo en el menú.`;
+  }
+  const yaLleva = ctx.carrito.find((i) => i.productoId === destino.id)?.gramos ?? 0;
+  if (yaLleva && esCambio(mensaje) && !esAgregado(mensaje)) {
+    const r = cambiar_cantidad(ctx, { producto: destino.nombre, gramos });
+    if (r.cambiado) return `Listo, ${minus(destino.nombre)} en ${formatoGramos(gramos)}. ¿Te lo confirmo?`;
+    if (r.problema === "minimo") return `Lo mínimo son ${MIN_GRAMOS} gramos. ¿Lo dejo en ${MIN_GRAMOS} o lo quito?`;
+    return `De ${minus(destino.nombre)} solo me quedan ${(r as { disponibles?: string }).disponibles}.`;
+  }
+  if (yaLleva || esAgregado(mensaje) || enPedido || nombrado) {
+    const r = agregar_al_carrito(ctx, { items: [{ producto: destino.nombre, gramos }] });
+    if (!r.agregados.length) return explicarProblemas(r.problemas) || "No pude agregarlo.";
+    const total = ctx.carrito.find((i) => i.productoId === destino.id)?.gramos ?? gramos;
+    return `Listo, ${minus(destino.nombre)} ahora en ${formatoGramos(total)}. ¿Te lo confirmo?`;
+  }
+  abrirMenu(ctx);
+  return `¿De qué producto quieres ${formatoGramos(Math.max(gramos, MIN_GRAMOS))}? Tócalo en el menú.`;
+}
+
 function abrirMenu(ctx: Contexto, categoria?: string) {
   ctx.abrirMenu = true;
   ctx.categoriaMenu = categoria;
@@ -87,7 +115,9 @@ function completarConContexto(ctx: Contexto, mensaje: string, historial: { rol: 
   const p = productoEnTexto(ctx, ultimaAna.texto);
   if (!p) return mensaje;
   const conProducto = `${mensaje} de ${p.nombre}`;
-  return interpretarPedido(conProducto).length ? conProducto : mensaje;
+  if (interpretarPedido(conProducto).length) return conProducto;
+  const g = cantidadSuelta(mensaje); // "kilo", "guilo"
+  return g ? `${g} gramos de ${p.nombre}` : mensaje;
 }
 
 export async function responderLocal(ctx: Contexto, mensajeOriginal: string, historial: { rol: string; texto: string }[] = []): Promise<string> {
@@ -98,12 +128,42 @@ export async function responderLocal(ctx: Contexto, mensajeOriginal: string, his
     return r.agregados.length ? `Listo, agregados. ¿Te lo confirmo?` : "Ya no me queda de esos productos.";
   }
 
+  // "no" solo: rechaza la sugerencia o la confirmación, sin abrir el menú
+  if (esNegativa(mensaje)) {
+    const ultimaAna = [...historial].reverse().find((m) => m.rol === "ana")?.texto ?? "";
+    const habia = ctx.sugerencia.length > 0;
+    ctx.sugerencia = [];
+    if (habia || !ctx.carrito.length) return "Está bien. ¿Qué te pongo?";
+    if (/algo m[aá]s/i.test(ultimaAna)) return "Listo. ¿Te lo confirmo?";
+    return "Está bien, no lo confirmo. ¿Qué cambio?";
+  }
+
+  // "dame 100 g de cada producto", "de todo lo del menú"
+  if (pideDeTodo(mensaje)) {
+    const g = Math.max(cantidadSuelta(mensaje) ?? MIN_GRAMOS, MIN_GRAMOS);
+    const hay = ctx.productos.filter((p) => p.stockGramos - (ctx.carrito.find((i) => i.productoId === p.id)?.gramos ?? 0) >= g);
+    const r = agregar_al_carrito(ctx, { items: hay.map((p) => ({ producto: p.nombre, gramos: g })) });
+    ctx.abrirMenu = false;
+    ctx.sugerencia = [];
+    return r.agregados.length ? `Te puse ${formatoGramos(g)} de ${r.agregados.length} productos. ¿Te lo confirmo?` : "No me queda suficiente de ninguno.";
+  }
+
   const intencion = detectarIntencion(mensaje, ctx.esperandoConfirmacion && ctx.carrito.length > 0);
+
+  // cantidad sin producto: "agrégale 1 kg más", "es 1,8 kg", "al pedido de maní chocolate agrégale 1 kg"
+  if (intencion !== "pedido" && intencion !== "quitar" && intencion !== "cancelar" && intencion !== "precio" && intencion !== "confirmar") {
+    const g = cantidadSuelta(mensaje);
+    if (g) {
+      ctx.sugerencia = [];
+      return ajustarCantidad(ctx, mensaje, g);
+    }
+  }
 
   // 2. asistente de ventas: "quiero hacer hallacas"
   if (intencion !== "pedido" && intencion !== "quitar" && intencion !== "cancelar") {
     const receta = detectarReceta(mensaje);
-    if (receta) {
+    // "maní de chocolate" es un producto, no el plato "chocolate caliente"
+    if (receta && !(productoEnTexto(ctx, mensaje) && !quiereCocinar(mensaje))) {
       const r = sugerir_para_receta(ctx, { plato: receta.plato });
       if (r.encontrada && r.sugerencia?.length) {
         return `Para ${receta.plato}: ${lista(r.sugerencia.map((s) => minus(s.producto)))}. ¿Te los agrego?`;
@@ -186,6 +246,9 @@ export async function responderLocal(ctx: Contexto, mensajeOriginal: string, his
           return `Tengo ${lista(r.opciones.map((p) => minus(p.nombre)), "o")}. ¿Cuál quieres y cuántos gramos?`;
         }
       }
+      // producto nombrado dentro de una frase: "es lo más parecido a maní de chocolate"
+      const enTexto = productoEnTexto(ctx, mensaje);
+      if (enTexto) return `¿Cuántos gramos de ${minus(enTexto.nombre)} te pongo?`;
       if (ctx.esperandoConfirmacion && ctx.carrito.length) {
         abrirMenu(ctx);
         return "No te entendí. ¿Te confirmo el pedido?";

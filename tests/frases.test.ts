@@ -92,6 +92,8 @@ const PEDIDOS: [string, string][] = [
   ["mija ponme medio de avena", "avena:500"],
   ["dame un poquito de canela", "canela:100"],
   ["chamo regálame una pizca de clavo", "clavo:100"],
+  // así llega del micrófono: con mayúscula y punto final
+  ["Dame 100 de pasas.", "pasas:100"],
 ];
 
 describe("pedidos dichos como habla la gente", () => {
@@ -127,6 +129,12 @@ const RECETAS: [string, string][] = [
   ["quiero hacer un desayuno saludable", "granola casera"],
   ["ana dime que me llevo para hacerme unas buenas hallacas", "hallacas"],
   ["marico qué me recomiendas pa una parrilla", "carne asada"],
+  // frases reales de /admin ("Lo que ANA no entendió")
+  ["Ayacas.", "hallacas"],
+  ["¿Qué puedo hacer para tener una llaca?", "hallacas"],
+  ["Ponme los condimentos para hacerme una buena hallaca.", "hallacas"],
+  ["Dame para hacer una buena yaca.", "hallacas"],
+  ["Quiero hacerme un café. ¿Qué debo llevar?", "café"],
   ["voy a ver el juego qué llevo", "pasapalos"],
 ];
 
@@ -172,6 +180,8 @@ describe("consejos y preguntas", () => {
 /** Charla, cumplidos, insultos y temas fuera de la tienda: una línea y de vuelta al pedido. */
 const CHARLA: [string, RegExp][] = [
   ["cómo estás", /(hecha para ayudarte|Lista para atenderte)/],
+  ["¿Cómo estás?", /(hecha para ayudarte|Lista para atenderte)/],
+  ["¿Qué tal?", /(hecha para ayudarte|Lista para atenderte)/],
   ["hola ana como estas", /(hecha para ayudarte|Lista para atenderte)/],
   ["qué más ana, todo bien?", /(hecha para ayudarte|Lista para atenderte)/],
   ["quién eres", /Soy ANA/],
@@ -215,4 +225,59 @@ describe("lo que no entiende abre el menú", () => {
       expect(r.abrirMenu).toBe(true);
     });
   }
+});
+
+/** Frases reales de /admin que dependen de lo que ya lleva: el pedido tiene 800 g de maní con chocolate. */
+const CON_PEDIDO: [string, RegExp, string][] = [
+  ["Al pedido de maní chocolate, agrégale 1 kg.", /1,8 kg/, "chocolate-mani:1800"],
+  ["Agregarle 1 kg más.", /1,8 kg/, "chocolate-mani:1800"],
+  ["No, no me lo confirmes porque es 1,8 kg.", /1,8 kg/, "chocolate-mani:1800"],
+  ["déjalo en 500", /500 g/, "chocolate-mani:500"],
+  ["¿Cuántos productos tengo hasta ahora?", /Llevas 800 g de maní con chocolate/, "chocolate-mani:800"],
+  ["Hasta ahora que llevan al cabrito.", /Llevas 800 g/, "chocolate-mani:800"],
+  ["Es lo más parecido a maní de chocolate.", /gramos de maní con chocolate/, "chocolate-mani:800"],
+  ["No.", /no lo confirmo/, "chocolate-mani:800"],
+  ["Dame 50.", /De qué producto/, "chocolate-mani:800"],
+  ["Dame, me han dicho que ahora te-- un kilo.", /De qué producto quieres 1 kg/, "chocolate-mani:800"],
+  ["Guilo.", /De qué producto quieres 1 kg/, "chocolate-mani:800"],
+];
+
+describe("frases con un pedido en curso", () => {
+  for (const [frase, rx, esperado] of CON_PEDIDO) {
+    it(frase, async () => {
+      const choco = productos.find((p) => p.slug === "chocolate-mani")!;
+      const r = await responder(AnaBody.parse({ mensaje: frase, canal: "voz", carrito: [{ productoId: choco.id, gramos: 800 }] }), productos);
+      expect(r.respuesta).toMatch(rx);
+      expect(r.carrito.map((i) => `${slugDe(i.productoId)}:${i.gramos}`).join(" ")).toBe(esperado);
+    });
+  }
+});
+
+describe("cantidad suelta después de que ANA pregunta cuántos gramos", () => {
+  it("Guilo. -> 1 kg de comino", async () => {
+    const r = await responder(
+      AnaBody.parse({ mensaje: "Guilo.", canal: "voz", historial: [{ rol: "ana", texto: "¿Cuántos gramos de comino molido te pongo?" }] }),
+      productos,
+    );
+    expect(r.carrito.map((i) => `${slugDe(i.productoId)}:${i.gramos}`).join(" ")).toBe("comino:1000");
+  });
+});
+
+describe("pedir de todo", () => {
+  for (const frase of ["Dame 100 g de cada producto que tengas a la venta.", "Dame 100 g de todo lo que tengas en el menú."]) {
+    it(frase, async () => {
+      const r = await pedir(frase);
+      expect(r.carrito.length).toBe(productos.filter((p) => p.stockGramos >= 100).length);
+      expect(r.carrito.every((i) => i.gramos === 100)).toBe(true);
+      expect(r.abrirMenu).toBe(false);
+    });
+  }
+});
+
+describe("un no solo no abre el menú", () => {
+  it("No. tras una receta", async () => {
+    const r = await pedir("No.");
+    expect(r.abrirMenu).toBe(false);
+    expect(r.respuesta).toMatch(/Qué te pongo/);
+  });
 });

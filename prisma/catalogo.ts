@@ -32,5 +32,5 @@ export const CATALOGO: ProductoSemilla[] = [
   { slug: "linaza", nombre: "Linaza", alias: ["linaza", "semillas de linaza"], categoria: "Granos y cereales", precioKgUsd: 6.5, stockGramos: 3000, color: "#7a5230" },
   { slug: "ajonjoli", nombre: "Ajonjolí", alias: ["ajonjoli", "sesamo"], categoria: "Granos y cereales", precioKgUsd: 8.0, stockGramos: 2500, color: "#efe2c0" },
   { slug: "clavo", nombre: "Clavo de olor", alias: ["clavo", "clavitos", "clavos de olor"], categoria: "Especias", precioKgUsd: 30.0, stockGramos: 500, color: "#4e2a1e" },
-  { slug: "chocolate-mani", nombre: "Maní con chocolate", alias: ["mani con chocolate", "many con chocolate", "chocomani"], categoria: "Dulces y frutas secas", precioKgUsd: 12.0, stockGramos: 2000, color: "#5a3825" },
+  { slug: "chocolate-mani", nombre: "Maní con chocolate", alias: ["mani con chocolate", "many con chocolate", "chocomani", "mani de chocolate", "mani chocolate", "chocolate con mani"], categoria: "Dulces y frutas secas", precioKgUsd: 12.0, stockGramos: 2000, color: "#5a3825" },
 ];

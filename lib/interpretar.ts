@@ -125,7 +125,8 @@ const RX = {
   quitar: /\b(quita[rl]?|quitame|elimina[rl]?|saca[rl]?|[rl]?eti[rl]?a|sin el|sin la)\b/,
   precio: /\b(cuanto (cuesta|cuestan|vale|valen|sale|salen|esta|estan)|p[rl]?ecio|a como (esta|estan|sale|salen|es)?|que p[rl]?ecio)\b/,
   catalogo: /\b(que (tienen|tienes|venden|vendes|hay)|catalogo|productos|menu|lista)\b/,
-  carrito: /\b(mi pedido|el pedido|ca[rl]+ito|ca[rl]?ito|cuanto (es|va|llevo)|total)\b/,
+  // "cabrito": así transcribe el micrófono "carrito" a veces
+  carrito: /\b(mi pedido|el pedido|ca[rl]+ito|ca[rl]?ito|cab[rl]ito|cuanto (es|va|llevo)|total|que (llevo|tengo|llevamos)|cuantos productos (tengo|llevo|van|hay en)|hasta ahora|hasta el momento)\b/,
   saludo: /\b(hola|buenas|buenos dias|buenas tardes|buenas noches|hey|epa)\b/,
 };
 
@@ -159,4 +160,41 @@ export function aceptaSugerencia(texto: string): boolean {
   const n = normalizar(texto);
   if (/\b(no|nada|despues|luego)\b/.test(n) && !/\bno se\b/.test(n)) return false;
   return RX.confirmar.test(n) || /\b(ag[rl]?egal[oa]s?|agregame|ponmel[oa]s|todo|tod[oa]s|esos|esas|me l[oa]s llevo|vale)\b/.test(n);
+}
+
+/**
+ * Cantidad dicha sin producto: "agrégale 1 kg más", "es 1,8 kg", "dame 50", "kilo".
+ * Devuelve los gramos de la primera cantidad, o null si no hay ninguna.
+ */
+export function cantidadSuelta(texto: string): number | null {
+  const tk = tokenizar(texto);
+  for (let i = 0; i < tk.length; i++) {
+    const c = leerCantidad(tk, i);
+    if (c) return c.gramos;
+  }
+  // "kilo" o "un kilo" solo (respuesta a "¿cuántos gramos?")
+  const resto = tk.filter((t) => t !== "," && !["dame", "ponme", "un", "uno", "el", "ana"].includes(t));
+  if (resto.length === 1 && (resto[0] === "kilo" || resto[0] === "kg")) return 1000;
+  return null;
+}
+
+/** "agrégale", "súmale", "otro", "más": la cantidad se suma a lo que ya lleva. */
+export function esAgregado(texto: string): boolean {
+  return /\b(ag[rl]?ega(le|l[oa]|r|rle|me)?|suma(le|r|rle)?|otro|otra|otros|mas|aumenta(le)?)\b/.test(normalizar(texto));
+}
+
+/** "es 1,8 kg", "que sean 500", "déjalo en 300", "cámbialo a 200": la cantidad reemplaza la que lleva. */
+export function esCambio(texto: string): boolean {
+  return /\b(es|son|eran|sea|sean|deja(lo|la)? en|cambia(lo|la|le)? a|pon(lo|la|le) en|en vez de|no (es|son))\b/.test(normalizar(texto));
+}
+
+/** "dame 100 de cada producto", "de todo lo que tengas en el menú". */
+export function pideDeTodo(texto: string): boolean {
+  const n = normalizar(texto);
+  return /\b(cada|todo|todos|toditos|uno de cada)\b/.test(n) && /\b(producto|productos|menu|tengas|tienes|tienen|hay|venta|vendes|venden|catalogo|uno)\b/.test(n);
+}
+
+/** "no", "no gracias", "todavía no": respuesta negativa sola. */
+export function esNegativa(texto: string): boolean {
+  return /^(no|nop|nope|no gracias|nada|nada mas|no por ahora|todavia no|aun no|no todavia|asi no|no no)$/.test(normalizar(texto).replace(/[.,!?]/g, "").trim());
 }
