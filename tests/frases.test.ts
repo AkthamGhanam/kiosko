@@ -132,7 +132,6 @@ const RECETAS: [string, string][] = [
   // frases reales de /admin ("Lo que ANA no entendió")
   ["Ayacas.", "hallacas"],
   ["¿Qué puedo hacer para tener una llaca?", "hallacas"],
-  ["Ponme los condimentos para hacerme una buena hallaca.", "hallacas"],
   ["Dame para hacer una buena yaca.", "hallacas"],
   ["Quiero hacerme un café. ¿Qué debo llevar?", "café"],
   ["voy a ver el juego qué llevo", "pasapalos"],
@@ -280,4 +279,26 @@ describe("un no solo no abre el menú", () => {
     expect(r.abrirMenu).toBe(false);
     expect(r.respuesta).toMatch(/Qué te pongo/);
   });
+});
+
+/** "Dame X y todo lo de la receta": agrega la receta completa y también los productos, sin preguntar. */
+const HALLACA = ["onoto:100", "comino:100", "ajo-polvo:100", "pimienta-negra:100", "pasas:150", "almendras:100"];
+const PEDIDO_Y_RECETA: [string, string[], RegExp][] = [
+  ["Dame maní salado y todo lo que necesito para hacer hallacas.", [...HALLACA, "mani-salado:100"], /hallacas.*maní salado.*confirmo/],
+  ["ponme 200 de merey y lo de la hallaca", [...HALLACA, "merey:200"], /hallacas.*merey/],
+  ["dame todo lo que necesito para las hallacas", HALLACA, /Te puse lo de hallacas/],
+  ["Ponme los condimentos para hacerme una buena hallaca.", HALLACA, /Te puse lo de hallacas/],
+  // maní a secas: agrega la receta y pregunta cuál maní
+  ["dame maní y todo lo que necesito para hacer hallacas", HALLACA, /hallacas.*Cuál quieres/],
+];
+
+describe("producto y receta en la misma frase", () => {
+  for (const [frase, esperado, rx] of PEDIDO_Y_RECETA) {
+    it(frase, async () => {
+      const r = await pedir(frase);
+      expect(r.carrito.map((i) => `${slugDe(i.productoId)}:${i.gramos}`).sort()).toEqual([...esperado].sort());
+      expect(r.respuesta).toMatch(rx);
+      expect(r.sugerencia).toEqual([]);
+    });
+  }
 });

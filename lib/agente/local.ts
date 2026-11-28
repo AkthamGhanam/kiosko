@@ -5,7 +5,7 @@ import { formatoDinero, formatoGramos } from "../dinero";
 import { MIN_GRAMOS } from "../config";
 import { detectarReceta, quiereCocinar } from "../recetas";
 import { INFO, pideConsejo, preguntaPicante, preguntaSalud, preguntaUso } from "../consejos";
-import { fonetica } from "../texto";
+import { fonetica, normalizar } from "../texto";
 import { responderCharla } from "../charla";
 import {
   agregar_al_carrito,
@@ -70,6 +70,54 @@ function responderConsejo(ctx: Contexto, mensaje: string): string | null {
     return "¿Qué vas a cocinar? Te digo qué llevar.";
   }
   return null;
+}
+
+const VERBOS_PEDIR = /\b(dame|deme|ponme|pongame|echame|regalame|vendeme|pasame|agregame|agrega|anade|quiero|quisiera|necesito|me das|me pones|tambien|ademas|y|ana|por favor|porfa|un poco de|algo de)\b/g;
+
+/**
+ * Frase con productos y un plato: "dame maní y todo lo que necesito para hacer hallacas",
+ * "ponme 200 de merey y lo de la hallaca". Agrega la receta completa y también los productos.
+ */
+function pedidoConReceta(ctx: Contexto, mensaje: string): string | null {
+  const receta = detectarReceta(mensaje);
+  if (!receta) return null;
+  const partes = normalizar(mensaje).split(/,|\.(?:\s|$)|\by\b|\btambien\b|\bademas\b|\bmas\b/).map((s) => s.trim()).filter(Boolean);
+  const deReceta = partes.filter((s) => detectarReceta(s));
+  const otras = partes.filter((s) => !detectarReceta(s)).map((s) => s.replace(VERBOS_PEDIR, " ").replace(/\s+/g, " ").trim()).filter((s) => s.length > 2);
+  const pideTodo = deReceta.some((s) => /\b(todo|toda|lo que|lo necesario|lo de|los condimentos|las especias|los ingredientes)\b/.test(s));
+  if (!otras.length && !pideTodo) return null; // "quiero hacer hallacas": sigue como sugerencia
+  // ¿lo demás es un producto? (si no, "todo para hallacas el sábado" sigue normal)
+  const pedidos: { producto: string; gramos: number }[] = [];
+  const dudas: string[] = [];
+  for (const o of otras) {
+    const lineas = interpretarPedido(o);
+    if (lineas.length) {
+      pedidos.push(...lineas.map((l) => ({ producto: l.texto, gramos: l.gramos })));
+      continue;
+    }
+    const r = buscarProducto(o, ctx.productos);
+    if (r.tipo === "exacto") pedidos.push({ producto: r.producto.nombre, gramos: MIN_GRAMOS });
+    else if (r.tipo === "ambiguo") {
+      dudas.push(`${lista(r.opciones.map((p) => minus(p.nombre)), "o")}`);
+      abrirMenu(ctx, r.opciones[0]?.categoria);
+    }
+  }
+  if (!pedidos.length && !dudas.length && !pideTodo) return null;
+
+  const s = sugerir_para_receta(ctx, { plato: receta.plato });
+  const deLaReceta = s.encontrada ? agregar_sugerencia(ctx).agregados : [];
+  const r = pedidos.length ? agregar_al_carrito(ctx, { items: pedidos }) : null;
+  const frases: string[] = [];
+  // lo que ya venía en la receta no se repite al decirlo
+  const agregados = [...new Set(r?.agregados.map((a) => a.producto) ?? [])].filter((n) => !deLaReceta.includes(n)).map(minus);
+  // se dice corto (se habla en voz alta); el detalle se ve en el carrito
+  const queReceta = deLaReceta.length > 3 ? `${deLaReceta.length} productos` : lista(deLaReceta.map(minus));
+  if (deLaReceta.length) frases.push(`Te puse lo de ${receta.plato} (${queReceta})${agregados.length ? ` y ${lista(agregados)}` : ""}.`);
+  else if (agregados.length) frases.push(`Te puse ${lista(agregados)}.`);
+  if (r?.problemas.length) frases.push(explicarProblemas(r.problemas));
+  if (dudas.length) frases.push(`Tengo ${dudas.join("; ")}. ¿Cuál quieres?`);
+  else frases.push("¿Te lo confirmo?");
+  return frases.join(" ");
 }
 
 /** Aplica una cantidad dicha sin producto al producto nombrado, o al último del pedido. */
@@ -147,6 +195,10 @@ export async function responderLocal(ctx: Contexto, mensajeOriginal: string, his
     ctx.sugerencia = [];
     return r.agregados.length ? `Te puse ${formatoGramos(g)} de ${r.agregados.length} productos. ¿Te lo confirmo?` : "No me queda suficiente de ninguno.";
   }
+
+  // "dame maní y todo lo que necesito para hacer hallacas": producto + receta en la misma frase
+  const combinado = pedidoConReceta(ctx, mensaje);
+  if (combinado) return combinado;
 
   const intencion = detectarIntencion(mensaje, ctx.esperandoConfirmacion && ctx.carrito.length > 0);
 
