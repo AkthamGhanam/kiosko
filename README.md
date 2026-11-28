@@ -130,6 +130,17 @@ Platos incluidos: hallacas, pan de jamón, torta negra, chocolate caliente, arro
 
 Animaciones: son procedurales (código en `components/ana/Avatar.tsx`): respiración, parpadeo aleatorio, micro movimientos de cabeza, mirada al cliente, saludo con la mano, gestos al hablar y caminata para entrar y salir. Mixamo exige iniciar sesión y redirigir clips de otro esqueleto, así que se optó por animación propia sin dependencias de licencia. Si prefieres clips, se pueden cargar con `THREE.AnimationMixer` sobre los huesos normalizados de `vrm.humanoid`.
 
+## Publicar en internet (Railway)
+
+El micrófono solo funciona en `localhost` o con HTTPS, así que para probar desde otro equipo o el teléfono hay que publicarlo. El repo trae un `Dockerfile` listo.
+
+1. Entra a [railway.com](https://railway.com), inicia sesión con GitHub y crea **New Project → Deploy from GitHub repo → AkthamGhanam/kiosko**. Elige la rama `main` (o la del PR para probar antes de unir).
+2. En el servicio: **Settings → Volumes → Add volume**, ruta `/data`. Ahí vive la base SQLite y el inventario no se pierde al redesplegar.
+3. En **Variables** agrega `ELEVENLABS_API_KEY` (y si quieres `GROQ_API_KEY`).
+4. En **Settings → Networking → Generate domain**. Abre esa dirección `https://…up.railway.app` y `/admin` para el inventario.
+
+Al arrancar, el contenedor aplica las migraciones y carga el catálogo si la base está vacía (no pisa el stock existente). También sirve en Render, Fly.io o cualquier servidor con Docker; en Vercel no, porque SQLite necesita un disco persistente.
+
 ## Tests
 
 ```bash
