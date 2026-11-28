@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { responder } from "@/lib/agente";
 import { AnaBody } from "@/lib/esquemas";
 import { CATALOGO } from "@/prisma/catalogo";
+import { RECETAS as TODAS_RECETAS, detectarReceta } from "@/lib/recetas";
 
 const db = new PrismaClient();
 let productos: Awaited<ReturnType<typeof db.producto.findMany>> = [];
@@ -299,6 +300,26 @@ describe("producto y receta en la misma frase", () => {
       expect(r.carrito.map((i) => `${slugDe(i.productoId)}:${i.gramos}`).sort()).toEqual([...esperado].sort());
       expect(r.respuesta).toMatch(rx);
       expect(r.sugerencia).toEqual([]);
+    });
+  }
+});
+
+/** Todas las recetas: cada forma de nombrar el plato lleva a su receta, y "dame todo lo que necesito para…" la agrega completa. */
+describe("todas las recetas", () => {
+  it("hay muchas recetas y todas usan productos del catálogo", () => {
+    expect(TODAS_RECETAS.length).toBeGreaterThanOrEqual(45);
+    const slugs = new Set(CATALOGO.map((p) => p.slug));
+    for (const r of TODAS_RECETAS) for (const i of r.items) expect(slugs.has(i.slug), `${r.plato}: ${i.slug}`).toBe(true);
+  });
+  for (const r of TODAS_RECETAS) {
+    it(`${r.plato}: sus claves no chocan con otra receta`, () => {
+      for (const c of r.claves) expect(detectarReceta(`voy a hacer ${c}`)?.plato, c).toBe(r.plato);
+    });
+    it(`dame todo lo que necesito para ${r.claves[0]}`, async () => {
+      const resp = await pedir(`dame todo lo que necesito para ${r.claves[0]}`);
+      const esperado = [...new Set(r.items.map((i) => i.slug))].sort();
+      expect([...new Set(resp.carrito.map((i) => slugDe(i.productoId)!))].sort(), resp.respuesta).toEqual(esperado);
+      expect(resp.respuesta).toContain(`Te puse lo de ${r.plato}`);
     });
   }
 });

@@ -218,7 +218,10 @@ export async function responderLocal(ctx: Contexto, mensajeOriginal: string, his
     if (receta && !(productoEnTexto(ctx, mensaje) && !quiereCocinar(mensaje))) {
       const r = sugerir_para_receta(ctx, { plato: receta.plato });
       if (r.encontrada && r.sugerencia?.length) {
-        return `Para ${receta.plato}: ${lista(r.sugerencia.map((s) => minus(s.producto)))}. ¿Te los agrego?`;
+        // en voz alta se dicen hasta 4; el resto se ve en la tarjeta
+        const nombres = r.sugerencia.map((s) => minus(s.producto));
+        const dichos = nombres.length > 4 ? `${nombres.slice(0, 4).join(", ")} y ${nombres.length - 4} más` : lista(nombres);
+        return `Para ${receta.plato}: ${dichos}. ¿Te los agrego?`;
       }
     }
   }
