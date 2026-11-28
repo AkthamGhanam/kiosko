@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useKiosko } from "@/lib/cliente/store";
 import type { ProductoCliente } from "@/lib/cliente/tipos";
@@ -11,8 +11,14 @@ const TODAS = "Todo";
 export function Catalogo() {
   const productos = useKiosko((e) => e.productos);
   const carrito = useKiosko((e) => e.carrito);
+  const pedida = useKiosko((e) => e.categoriaMenu);
   const [cat, setCat] = useState(TODAS);
   const [elegido, setElegido] = useState<ProductoCliente | null>(null);
+
+  // ANA abre el menú en la categoría de lo que el cliente nombró ("maní" → Maní)
+  useEffect(() => {
+    setCat(pedida ?? TODAS);
+  }, [pedida]);
 
   const categorias = useMemo(() => [TODAS, ...new Set(productos.map((p) => p.categoria))], [productos]);
   const visibles = cat === TODAS ? productos : productos.filter((p) => p.categoria === cat);

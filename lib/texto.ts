@@ -39,6 +39,7 @@ export function similitud(a: string, b: string): number {
 export function fonetica(s: string): string {
   return normalizar(s)
     .replace(/h/g, "")
+    .replace(/ll/g, "y")
     .replace(/rr/g, "r")
     .replace(/[rl]+/g, "l")
     .replace(/v/g, "b")
@@ -46,7 +47,6 @@ export function fonetica(s: string): string {
     .replace(/c([ei])/g, "s$1")
     .replace(/qu([ei])/g, "k$1")
     .replace(/c/g, "k")
-    .replace(/ll/g, "y")
     .replace(/y\b/g, "i")
     .replace(/(.)\1+/g, "$1");
 }

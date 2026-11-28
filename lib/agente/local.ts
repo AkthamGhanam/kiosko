@@ -115,7 +115,10 @@ export async function responderLocal(ctx: Contexto, mensaje: string): Promise<st
           return `Tengo ${lista(r.opciones.map((p) => minus(p.nombre)), "o")}. ¿Cuál quieres y cuántos gramos?`;
         }
       }
-      if (ctx.esperandoConfirmacion && ctx.carrito.length) return "¿Te confirmo el pedido o quieres cambiar algo?";
+      if (ctx.esperandoConfirmacion && ctx.carrito.length) {
+        abrirMenu(ctx);
+        return "No te entendí bien. ¿Te confirmo el pedido o quieres agregar algo del menú?";
+      }
       abrirMenu(ctx);
       return "Disculpa, no te entendí bien. Te abrí el menú para que lo toques, o dime el producto y los gramos.";
     }

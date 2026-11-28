@@ -85,6 +85,45 @@ describe("ANA sin IA (intérprete local)", () => {
   });
 });
 
+describe("ANA asistente de ventas y sin la r", () => {
+  it("recomienda condimentos para hallacas y los agrega al decir que sí", async () => {
+    const r1 = await responder(cuerpo({ mensaje: "quiero hacer hallacas" }), await productos());
+    expect(r1.respuesta).toMatch(/hallacas/);
+    expect(r1.respuesta).toMatch(/onoto/);
+    expect(r1.sugerencia.length).toBeGreaterThanOrEqual(4);
+    expect(r1.carrito).toEqual([]);
+    const r2 = await responder(cuerpo({ mensaje: "sí, agrégalos", sugerencia: r1.sugerencia }), await productos());
+    expect(r2.carrito).toHaveLength(r1.sugerencia.length);
+    expect(r2.sugerencia).toEqual([]);
+    expect(r2.esperandoConfirmacion).toBe(true);
+  });
+
+  it("si rechaza la sugerencia no agrega nada", async () => {
+    const r1 = await responder(cuerpo({ mensaje: "voy a hacer pollo al horno" }), await productos());
+    const r2 = await responder(cuerpo({ mensaje: "no, gracias", sugerencia: r1.sugerencia }), await productos());
+    expect(r2.carrito).toEqual([]);
+  });
+
+  it("abre el menú cuando no entiende", async () => {
+    const r = await responder(cuerpo({ mensaje: "asdf qwerty" }), await productos());
+    expect(r.abrirMenu).toBe(true);
+    expect(r.respuesta).toMatch(/menú/);
+  });
+
+  it("abre el menú en la categoría cuando hay varias opciones", async () => {
+    const r = await responder(cuerpo({ mensaje: "100 de maní" }), await productos());
+    expect(r.abrirMenu).toBe(true);
+    expect(r.categoriaMenu).toBeTruthy();
+  });
+
+  it("toma el pedido del guion dicho sin r", async () => {
+    const r1 = await responder(cuerpo({ mensaje: "Hola Ana, quielo pedil ciento veinte gamos de avena, cien de dandy, cincuenta de papika y cien de maní salado", canal: "voz" }), await productos());
+    expect(r1.carrito).toHaveLength(4);
+    const r2 = await responder(cuerpo({ mensaje: "pefecto", carrito: r1.carrito, esperandoConfirmacion: true, canal: "voz" }), await productos());
+    expect(r2.factura?.totalCents).toBe(281);
+  });
+});
+
 describe("ANA con IA (proveedor simulado)", () => {
   function llmFalso(respuestas: unknown[]) {
     const fetchFalso = vi.fn(async () => {

@@ -2,14 +2,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useKiosko } from "@/lib/cliente/store";
-import { enviarMensaje, iniciarEscucha } from "@/lib/cliente/orquestador";
+import { enviarMensaje } from "@/lib/cliente/orquestador";
 
-/** Micrófono grande + caja de texto: siempre hay forma de pedir si la voz falla. */
+/** Caja de texto solo para pruebas (?teclado=1). En el kiosko se pide por voz o tocando. */
 export function BarraEntrada() {
   const [texto, setTexto] = useState("");
-  const estado = useKiosko((e) => e.estadoAna);
   const mic = useKiosko((e) => e.microfonoDisponible);
-  const escuchando = estado === "escuchando";
 
   const enviar = () => {
     if (!texto.trim()) return;
@@ -19,27 +17,12 @@ export function BarraEntrada() {
 
   return (
     <form
-      className="flex items-center gap-3 px-4 pb-4"
+      className="flex items-center gap-3 px-4 pb-3"
       onSubmit={(e) => {
         e.preventDefault();
         enviar();
       }}
     >
-      {mic && (
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.9 }}
-          onClick={iniciarEscucha}
-          aria-label={escuchando ? "Dejar de escuchar" : "Hablar con ANA"}
-          className={`relative grid h-14 w-14 shrink-0 place-items-center rounded-full text-white shadow-lg ${escuchando ? "bg-paprika shadow-paprika/40" : "bg-hoja shadow-hoja/30"}`}
-        >
-          {escuchando && <motion.span className="absolute inset-0 rounded-full bg-paprika" animate={{ scale: [1, 1.6], opacity: [0.5, 0] }} transition={{ duration: 1.2, repeat: Infinity }} />}
-          <svg viewBox="0 0 24 24" className="relative h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
-            <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-          </svg>
-        </motion.button>
-      )}
       <input
         value={texto}
         onChange={(e) => setTexto(e.target.value)}

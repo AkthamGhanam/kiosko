@@ -13,7 +13,7 @@ import type { AnimAna } from "@/lib/cliente/tipos";
 
 const URL_MODELO = process.env.NEXT_PUBLIC_AVATAR_URL ?? "/models/ana.vrm";
 /** Mallas del modelo que no se muestran (nombres de nodo del VRM). */
-const OCULTAR = (process.env.NEXT_PUBLIC_AVATAR_OCULTAR ?? "robo_arm").split(",").map((s) => s.trim());
+const OCULTAR = (process.env.NEXT_PUBLIC_AVATAR_OCULTAR ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
 const suave = (actual: number, objetivo: number, k: number, dt: number) => actual + (objetivo - actual) * (1 - Math.exp(-k * dt));
 const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
@@ -41,6 +41,8 @@ export function Avatar() {
     alturaCabeza: 1.4,
     alturaTotal: 1.6,
     mitadAncho: 1,
+    /** En VRM 0.x los huesos normalizados quedan girados 180°: x y z van con signo opuesto. */
+    signo: 1,
   });
 
   // ---------- carga ----------
@@ -56,8 +58,9 @@ export function Avatar() {
         VRMUtils.removeUnnecessaryVertices(gltf.scene);
         VRMUtils.combineSkeletons(gltf.scene);
         VRMUtils.rotateVRM0(v); // no hace nada en VRM 1.0; corrige modelos 0.x
+        st.current.signo = v.meta?.metaVersion === "0" ? -1 : 1;
         v.scene.traverse((o) => {
-          // Seed-san trae un brazo robótico en la espalda: se oculta para un look de tienda
+          // mallas que se quieran esconder del modelo (NEXT_PUBLIC_AVATAR_OCULTAR)
           if (OCULTAR.includes(o.name)) o.visible = false;
           o.frustumCulled = false;
           if ((o as THREE.Mesh).isMesh) o.castShadow = true;
@@ -90,19 +93,19 @@ export function Avatar() {
     const cam = camera as THREE.PerspectiveCamera;
     const aspecto = size.width / size.height;
     const tan = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
-    // arriba: la coronilla + aire para la cabecera; abajo: cintura si el escenario es ancho,
-    // muslos si es estrecho (pantalla vertical completa)
-    const abajo = aspecto > 1.1 ? h * 0.6 : aspecto > 0.7 ? h * 0.45 : h * 0.28;
-    const arriba = st.current.alturaTotal + (aspecto > 1.1 ? 0.14 : 0.2);
-    // abajo queda tapado por los subtítulos: se desplaza el encuadre
-    let alto = arriba - abajo;
+    // ANA ocupa la parte de arriba; abajo quedan subtítulos, carrito y micrófono.
+    // Se encuadra de la coronilla a los muslos (o la cintura en horizontal) dentro de esa zona.
+    const abajo = aspecto > 1.1 ? h * 0.55 : h * 0.3;
+    const arriba = st.current.alturaTotal + 0.12;
+    const zonaLibre = aspecto > 1.1 ? 0.7 : 0.66; // fracción de pantalla visible sobre la interfaz
+    let alto = (arriba - abajo) / zonaLibre;
     let dist = alto / 2 / tan;
-    const mediaAnchoNecesaria = aspecto < 1 && aspecto > 0.65 ? 0.55 : 0.42; // que quepa el brazo al saludar
+    const mediaAnchoNecesaria = 0.5; // que quepa el brazo al saludar
     if (dist * tan * aspecto < mediaAnchoNecesaria) dist = mediaAnchoNecesaria / (tan * aspecto);
     alto = dist * tan * 2;
     const centroY = arriba - alto / 2;
-    // escenario ancho (pantalla vertical tras empezar): ANA a la izquierda, subtítulos a la derecha
-    const desplazX = aspecto > 1.1 ? dist * tan * aspecto * 0.42 : 0;
+    // ANA siempre al centro de la pantalla
+    const desplazX = 0;
     cam.position.set(desplazX, centroY + 0.04, dist);
     cam.lookAt(desplazX, centroY, 0);
     cam.updateProjectionMatrix();
@@ -230,9 +233,10 @@ export function Avatar() {
       const p = pose[nombre];
       if (!nodo || !p) return;
       const k = caminando > 0 ? 20 : 9;
-      nodo.rotation.x = suave(nodo.rotation.x, p[0], k, dt);
+      const sg = s.signo;
+      nodo.rotation.x = suave(nodo.rotation.x, p[0] * sg, k, dt);
       nodo.rotation.y = suave(nodo.rotation.y, p[1], k, dt);
-      nodo.rotation.z = suave(nodo.rotation.z, p[2], k, dt);
+      nodo.rotation.z = suave(nodo.rotation.z, p[2] * sg, k, dt);
     };
     aplicar(huesos.hips, "hips");
     aplicar(huesos.spine, "spine");
