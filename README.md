@@ -10,6 +10,20 @@ Kiosko digital de autoservicio para una tienda de condimentos, maní y frutos se
 |---|---|
 | ![Portátil](docs/portatil.jpg) | ![Admin](docs/admin.jpg) |
 
+## En producción
+
+Demo pública: **https://kiosko-eta.vercel.app** (inventario en [`/admin`](https://kiosko-eta.vercel.app/admin)). Vercel publica la rama `main` con Postgres de Neon.
+
+Lo que hace hoy:
+
+- **Habla y escucha con ElevenLabs:** voz venezolana CLARI, boca sincronizada letra por letra, un poco más rápida (1.15) y con frases de una línea para ir al grano.
+- **Entiende cómo habla la gente:** muletillas y palabras alargadas ("dame 100 deee pasas"), personas que no pronuncian la r ("quielo 200 de meley"), diminutivos ("un cuartico"), números en palabras, autocorrecciones y ruido del micrófono.
+- **Entiende lo coloquial y lo vulgar** ("chamo", "pana", "coño dame 100 de comino") y responde la charla en una línea antes de volver al pedido ("¿cómo estás?" → "Estoy hecha para ayudarte con tu pedido. ¿Qué te pongo?").
+- **Vendedora que aconseja:** recomienda condimentos por plato (hallacas, pollo, parrilla, pabellón, pasapalos y 15 más), explica para qué sirve cada producto, cuál pica y cuánto cuesta.
+- **Mínimo 100 g por producto:** si piden menos, lo sube a 100 y lo dice.
+- **No dice los datos de pago:** solo dice el total; el pago móvil sale en la factura.
+- **Si no entiende, abre el menú** para tocar el producto, y guarda la frase en `/admin` → "Lo que ANA no entendió" para agregarla a los tests.
+
 ## Instalación en 3 comandos
 
 Requisitos: Node.js 20 o superior. Para la voz, Chrome o Edge.
@@ -151,7 +165,7 @@ El micrófono solo funciona en `localhost` o con HTTPS, así que para probar des
 1. En [vercel.com/new](https://vercel.com/new) importa el repo `kiosko`. No cambies nada de la configuración (el `vercel.json` ya trae el comando de build).
 2. En el proyecto: **Storage → Create Database → Neon (Postgres)** y conéctala al proyecto. Eso crea `DATABASE_URL` sola.
 3. En **Settings → Environment Variables** agrega `ELEVENLABS_API_KEY` (y si quieres `GROQ_API_KEY`).
-4. En **Deployments → Redeploy** (o **Create Deployment** con la rama que quieras probar). Abre el link `https://….vercel.app` y `/admin` para el inventario.
+4. En **Settings → Git** deja `main` como Production Branch y haz **Deployments → Redeploy**. Abre el link `https://….vercel.app` y `/admin` para el inventario.
 
 En Vercel el panel `/admin` se actualiza cada 15 segundos en vez de al instante, porque cada función corre por separado. También hay un `Dockerfile` para Railway, Render, Fly.io o un servidor propio (monta un volumen en `/data` para SQLite).
 
