@@ -175,7 +175,7 @@ En Vercel el panel `/admin` se actualiza cada 15 segundos en vez de al instante,
 npm test
 ```
 
-151 tests, entre ellos una batería de más de 70 frases reales (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
+176 tests, entre ellos una batería de más de 90 frases reales (incluidas las que salen en /admin → "Lo que ANA no entendió") (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
 
 ## Guion de demo (2 minutos)
 

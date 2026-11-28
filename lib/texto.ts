@@ -24,6 +24,7 @@ export function quitarMuletillas(s: string): string {
     // diminutivos: "un cuartico", "medio kilito", "cien gramitos"
     .replace(/\bcuarti(c|t)o\b/g, "cuarto")
     .replace(/\bkili(c|t)os?\b/g, "kilo")
+    .replace(/\b(guilo|quilo|kilu|gilo)\b/g, "kilo") // el micrófono a veces oye "guilo"
     .replace(/\bgrami(c|t)os\b/g, "gramos")
     .replace(MULETILLAS, " ")
     .replace(COLOQUIAL, " ")
@@ -60,6 +61,9 @@ export function similitud(a: string, b: string): number {
  */
 export function fonetica(s: string): string {
   return normalizar(s)
+    .replace(/[.,]+/g, " ") // el micrófono transcribe con puntos y comas: "Ayacas." -> "ayacas"
+    .replace(/\s+/g, " ")
+    .trim()
     .replace(/h/g, "")
     .replace(/ll/g, "y")
     .replace(/rr/g, "r")

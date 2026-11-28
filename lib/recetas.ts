@@ -13,7 +13,7 @@ export type Receta = {
 export const RECETAS: Receta[] = [
   {
     plato: "hallacas",
-    claves: ["hallaca", "hallacas", "ayaca", "ayacas", "hayaca", "hayacas"],
+    claves: ["hallaca", "hallacas", "ayaca", "ayacas", "hayaca", "hayacas", "yaca", "yacas", "llaca", "llacas"],
     items: [
       { slug: "onoto", gramos: 50, para: "el color de la masa y el guiso" },
       { slug: "comino", gramos: 25, para: "el guiso" },
@@ -23,6 +23,16 @@ export const RECETAS: Receta[] = [
       { slug: "almendras", gramos: 100, para: "el adorno" },
     ],
     consejo: "El onoto es el secreto del color dorado de la masa.",
+  },
+  {
+    plato: "café",
+    claves: ["cafe", "cafecito", "guayoyo", "marroncito", "cafe de olla", "cafe con canela"],
+    items: [
+      { slug: "canela", gramos: 100, para: "aromatizar el café" },
+      { slug: "clavo", gramos: 100, para: "un toque especiado" },
+      { slug: "nuez-moscada", gramos: 100, para: "espolvorear" },
+    ],
+    consejo: "Una pizca de canela en el colador cambia el café.",
   },
   {
     plato: "pan de jamón",

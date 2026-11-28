@@ -13,7 +13,7 @@ export const GROSERIAS = /\b(cono|verga|marico|marica|maric[oa]n|mielda|mierda|n
 const REGLAS: Regla[] = [
   // insultos dirigidos a ANA: calma y de vuelta al pedido
   {
-    rx: /\b(eres|tu eres|sos|que)\s+(una?\s+)?(estupida|bruta|gafa|tonta|idiota|inutil|mala|basura|pendeja|ladilla|fastidiosa|lenta)\b|\b(estupida|bruta|gafa|idiota|inutil|pendeja|maldita|imbecil)\b|\bno sirves\b|\bno me entiendes\b|\bno entiendes nada\b/,
+    rx: /\b(eres|tu eres|sos|que)\s+(una?\s+)?(estupida|bruta|gafa|tonta|idiota|inutil|mala|basura|pendeja|ladilla|fastidiosa|lenta)\b|\b(estupida|bruta|gafa|idiota|inutil|pendeja|maldita|imbecil)\b|\bno sirves\b|\bno me entiendes\b|\bno entiendes nada\b|\b(que|esta) (vaina|cosa|maquina|broma) (tan |esta |es )?(mala|malo|fea|lenta|horrible)\b|\bno funciona\b|\bno sirve\b|\besto no sirve\b/,
     respuestas: ["Disculpa, vamos de nuevo. Dime producto y gramos, o tócalo en el menú.", "Perdón, inténtalo otra vez: producto y gramos."],
   },
   {
