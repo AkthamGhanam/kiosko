@@ -19,7 +19,7 @@ Lo que hace hoy:
 - **Habla y escucha con ElevenLabs:** voz venezolana CLARI, boca sincronizada letra por letra, un poco más rápida (1.15) y con frases de una línea para ir al grano.
 - **Entiende cómo habla la gente:** muletillas y palabras alargadas ("dame 100 deee pasas"), personas que no pronuncian la r ("quielo 200 de meley"), diminutivos ("un cuartico"), números en palabras, autocorrecciones y ruido del micrófono.
 - **Entiende lo coloquial y lo vulgar** ("chamo", "pana", "coño dame 100 de comino") y responde la charla en una línea antes de volver al pedido ("¿cómo estás?" → "Estoy hecha para ayudarte con tu pedido. ¿Qué te pongo?").
-- **Vendedora que aconseja:** recomienda condimentos por plato (hallacas, café, pollo, parrilla, pabellón, pasapalos y 15 más), explica para qué sirve cada producto, cuál pica y cuánto cuesta. Si le piden "dame maní salado y todo lo que necesito para hacer hallacas", agrega todo de una vez.
+- **Vendedora que aconseja:** recomienda condimentos por plato (50 platos: hallacas, pernil, pavo, arepas, empanadas, arroz con pollo, pabellón, parrilla, pescado, tacos, comida china y árabe, tortas, dulces navideños, batidos, pasapalos y más), explica para qué sirve cada producto, cuál pica y cuánto cuesta. Si le piden "dame maní salado y todo lo que necesito para hacer hallacas", agrega todo de una vez.
 - **Mínimo 100 g por producto:** si piden menos, lo sube a 100 y lo dice.
 - **No dice los datos de pago:** solo dice el total; el pago móvil sale en la factura.
 - **Si no entiende, abre el menú** para tocar el producto, y guarda la frase en `/admin` → "Lo que ANA no entendió" para agregarla a los tests.
@@ -175,7 +175,7 @@ En Vercel el panel `/admin` se actualiza cada 15 segundos en vez de al instante,
 npm test
 ```
 
-180 tests, entre ellos una batería de más de 95 frases reales (incluidas las que salen en /admin → "Lo que ANA no entendió") (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
+279 tests, entre ellos las 50 recetas una por una y una batería de más de 95 frases reales (incluidas las que salen en /admin → "Lo que ANA no entendió") (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
 
 ## Guion de demo (2 minutos)
 

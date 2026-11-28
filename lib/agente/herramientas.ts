@@ -1,6 +1,7 @@
 // Herramientas que ANA puede usar. El LLM solo decide QUÉ herramienta llamar;
 // los precios, totales y el stock los calcula siempre este código desde la base de datos.
 import { z } from "zod";
+import { normalizar } from "../texto";
 import type { Producto } from "@prisma/client";
 import { buscarProducto, puntuar } from "../buscar";
 import { RECETAS, detectarReceta } from "../recetas";
@@ -147,7 +148,7 @@ export function cambiar_cantidad(ctx: Contexto, args: z.infer<typeof ArgsCambiar
 
 /** Asistente de ventas: qué llevar para un plato. Deja la sugerencia pendiente de aceptar. */
 export function sugerir_para_receta(ctx: Contexto, args: z.infer<typeof ArgsReceta>) {
-  const receta = detectarReceta(args.plato) ?? detectarReceta(`para ${args.plato}`);
+  const receta = RECETAS.find((r) => normalizar(r.plato) === normalizar(args.plato)) ?? detectarReceta(args.plato) ?? detectarReceta(`para ${args.plato}`);
   if (!receta) {
     return {
       encontrada: false,
