@@ -2,6 +2,7 @@
 // "120 gr de avena, 100 de dandy y otros 100 de maní salado" ->
 //   [{texto:"avena", gramos:120}, {texto:"dandy", gramos:100}, {texto:"mani salado", gramos:100}]
 import { normalizar, quitarMuletillas } from "./texto";
+import { MIN_GRAMOS } from "./config";
 
 export type LineaInterpretada = { texto: string; gramos: number };
 
@@ -38,6 +39,10 @@ function leerCantidad(tk: string[], i: number): { gramos: number; usados: number
   let valor: number | null = null;
   let esFraccionKilo = false;
 
+  // "un poquito de canela", "una pizca de clavo": lo mínimo que se vende
+  const POCO = new Set(["poquito", "poquitico", "poco", "pizca", "toque", "chin"]);
+  if ((tk[j] === "un" || tk[j] === "una") && POCO.has(tk[j + 1]) && tk[j + 2] !== "mas") return { gramos: MIN_GRAMOS, usados: 2 };
+  if (POCO.has(tk[j]) && (tk[j + 1] === "de" || tk[j + 1] === "e")) return { gramos: MIN_GRAMOS, usados: 1 };
   if ((tk[j] === "kilo" || tk[j] === "kg") && tk[j + 1] === "y" && (tk[j + 2] === "medio" || tk[j + 2] === "media")) {
     return { gramos: 1500, usados: 3 }; // "kilo y medio"
   }

@@ -123,6 +123,8 @@ Para que entienda cualquier forma de preguntar y mantenga la conversación como 
 
 **Habla real:** entiende muletillas y palabras alargadas (*"dame 100 deee pasas"*, *"este... ponme 100 de comino"*), autocorrecciones (*"100 de cumo... comino"*), diminutivos (*"un cuartico"*, *"medio kilito"*), *"1/2 kilo"* y formas venezolanas de pedir (*"regálame"*, *"échame"*, *"pásame"*).
 
+**Coloquial y vulgar:** atiende igual *"chamo, regálame 100 de esa vaina de merey"*, *"coño, dame 100 de comino"* o *"un poquito de canela"* (= 100 g). Responde en una línea a *"¿cómo estás?"* (*"Estoy hecha para ayudarte con tu pedido. ¿Qué te pongo?"*), *"¿quién eres?"*, *"gracias"*, *"chao"*, piropos, insultos (se disculpa y vuelve al pedido, sin sermonear) y temas fuera de la tienda. Las reglas están en `lib/charla.ts`.
+
 **Mejora continua:** cada frase que ANA no entiende se guarda y aparece en `/admin` → *"Lo que ANA no entendió"*. Para enseñarle, agrega la frase con el resultado esperado en `tests/frases.test.ts`, ajusta el intérprete hasta que `npm test` pase y publica.
 
 **Cuando ANA no entiende** (o el cliente dice algo con varias opciones, como *"maní"*), abre el menú táctil en la categoría que corresponde para que el cliente toque el producto.
@@ -159,7 +161,7 @@ En Vercel el panel `/admin` se actualiza cada 15 segundos en vez de al instante,
 npm test
 ```
 
-126 tests, entre ellos una batería de más de 70 frases reales (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
+151 tests, entre ellos una batería de más de 70 frases reales (`tests/frases.test.ts`): cálculo por gramos y redondeo, descuento exacto de stock, stock insuficiente (rechaza la línea y deja pasar el resto), no vender de más, concurrencia entre dos pedidos, reposición, parser de pedidos (incluido el guion completo), búsqueda difusa, palabras dichas sin r, recetas y sugerencias, apertura del menú cuando no entiende, el flujo de ANA de punta a punta sin IA, y el agente con un LLM simulado (uso de herramientas, bloqueo de confirmación en el mismo turno, respaldo cuando la IA falla, argumentos inválidos).
 
 ## Guion de demo (2 minutos)
 

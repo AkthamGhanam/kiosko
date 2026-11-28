@@ -82,6 +82,16 @@ const PEDIDOS: [string, string][] = [
   ["200 de achiote", "onoto:200"],
   ["100 de chocomani", "chocolate-mani:100"],
   ["Hola Ana. Quiero 100 gramos de canela. Y 100 de clavo.", "canela:100 clavo:100"],
+  // coloquial y vulgar venezolano
+  ["chamo dame 100 de pasas", "pasas:100"],
+  ["pana ponme 200 de esa vaina de merey", "merey:200"],
+  ["coño dame 100 de comino", "comino:100"],
+  ["coño marico dame 100 de pasas", "pasas:100"],
+  ["épale, regálame un cuarto de maní salado porfa", "mani-salado:250"],
+  ["mi pana échame un cuarto de merey", "merey:250"],
+  ["mija ponme medio de avena", "avena:500"],
+  ["dame un poquito de canela", "canela:100"],
+  ["chamo regálame una pizca de clavo", "clavo:100"],
 ];
 
 describe("pedidos dichos como habla la gente", () => {
@@ -115,6 +125,9 @@ const RECETAS: [string, string][] = [
   ["tengo una fiesta el sábado, qué llevo para picar", "pasapalos"],
   ["qué llevo para ver el juego", "pasapalos"],
   ["quiero hacer un desayuno saludable", "granola casera"],
+  ["ana dime que me llevo para hacerme unas buenas hallacas", "hallacas"],
+  ["marico qué me recomiendas pa una parrilla", "carne asada"],
+  ["voy a ver el juego qué llevo", "pasapalos"],
 ];
 
 describe("asistente de ventas: recomienda por plato", () => {
@@ -152,6 +165,34 @@ describe("consejos y preguntas", () => {
     it(frase, async () => {
       const r = await pedir(frase);
       expect(r.respuesta).toMatch(rx);
+    });
+  }
+});
+
+/** Charla, cumplidos, insultos y temas fuera de la tienda: una línea y de vuelta al pedido. */
+const CHARLA: [string, RegExp][] = [
+  ["cómo estás", /(hecha para ayudarte|Lista para atenderte)/],
+  ["hola ana como estas", /(hecha para ayudarte|Lista para atenderte)/],
+  ["qué más ana, todo bien?", /(hecha para ayudarte|Lista para atenderte)/],
+  ["quién eres", /Soy ANA/],
+  ["eres un robot?", /Soy ANA/],
+  ["gracias mi amor", /(A la orden|Con gusto)/],
+  ["glacias", /(A la orden|Con gusto)/],
+  ["chao", /vuelve pronto/],
+  ["eres una estúpida", /(Disculpa|Perdón)/],
+  ["verga no me entiendes", /(Disculpa|Perdón)/],
+  ["cuéntame un chiste", /vender especias/],
+  ["quién ganó el juego", /solo vendo especias/],
+  ["estás bella", /Gracias/],
+];
+
+describe("charla, coloquial y vulgar", () => {
+  for (const [frase, rx] of CHARLA) {
+    it(frase, async () => {
+      const r = await pedir(frase);
+      expect(r.respuesta).toMatch(rx);
+      expect(r.carrito).toEqual([]);
+      expect(r.abrirMenu).toBe(false);
     });
   }
 });

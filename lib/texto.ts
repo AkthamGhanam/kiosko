@@ -12,6 +12,9 @@ export function normalizar(s: string): string {
 
 // Muletillas y titubeos que llegan del micrófono: "dame 100 de... eh... pasas"
 const MULETILLAS = /\b(e+h*|e+m+|m+|h+m+|a+h+|este|esteee|o sea|osea|pues|bueno|digamos|vale vale|ok ok)\b/g;
+// Apodos, coloquialismos y groserías venezolanas que no cambian el pedido:
+// "chamo, regálame 100 de esa vaina de merey", "coño, dame 100 de comino"
+const COLOQUIAL = /\b(pana|mi pana|chamo|chama|chamito|mija|mijo|mano|broder|bro|epale|oye|mira|chica|chico|porfa|porfis|esa vaina|vaina|conchale|mi amor|mi vida|mi reina|mi cielo|cono|verga|marico|marica|maricon|mierda|nojoda|no joda|joder|carajo|guevon|huevon|webon)\b/g;
 
 /** Quita titubeos y repara "dee" -> "de". Se usa antes de leer un pedido o buscar un producto. */
 export function quitarMuletillas(s: string): string {
@@ -23,6 +26,7 @@ export function quitarMuletillas(s: string): string {
     .replace(/\bkili(c|t)os?\b/g, "kilo")
     .replace(/\bgrami(c|t)os\b/g, "gramos")
     .replace(MULETILLAS, " ")
+    .replace(COLOQUIAL, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

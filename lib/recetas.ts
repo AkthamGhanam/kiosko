@@ -131,7 +131,7 @@ export const RECETAS: Receta[] = [
   },
   {
     plato: "pasapalos",
-    claves: ["pasapalos", "fiesta", "reunion", "picar", "para picar", "cumpleanos", "partido", "juego"],
+    claves: ["pasapalos", "fiesta", "reunion", "picar", "para picar", "cumpleanos", "ver el partido", "para el partido", "ver el juego", "para el juego", "una parranda", "la rumba"],
     items: [
       { slug: "mani-salado", gramos: 500, para: "picar" },
       { slug: "merey", gramos: 250, para: "picar" },

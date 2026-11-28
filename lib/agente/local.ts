@@ -6,6 +6,7 @@ import { MIN_GRAMOS } from "../config";
 import { detectarReceta } from "../recetas";
 import { INFO, pideConsejo, preguntaPicante, preguntaSalud, preguntaUso } from "../consejos";
 import { fonetica } from "../texto";
+import { responderCharla } from "../charla";
 import {
   agregar_al_carrito,
   agregar_sugerencia,
@@ -109,7 +110,16 @@ export async function responderLocal(ctx: Contexto, mensajeOriginal: string, his
       }
     }
   }
-  // 3. consejos: "¿para qué sirve la linaza?", "¿cuál pica más?", "¿qué me recomiendas?"
+  // 3. charla: "¿cómo estás?", "¿quién eres?", "gracias", insultos o temas fuera de la tienda
+  if (intencion === "otro" || intencion === "saludo") {
+    const charla = responderCharla(mensaje);
+    if (charla) {
+      ctx.sugerencia = [];
+      return charla;
+    }
+  }
+
+  // 4. consejos: "¿para qué sirve la linaza?", "¿cuál pica más?", "¿qué me recomiendas?"
   if (intencion === "otro" || intencion === "saludo" || intencion === "catalogo" || intencion === "precio") {
     const consejo = intencion === "precio" && !preguntaUso(mensaje) ? null : responderConsejo(ctx, mensaje);
     if (consejo) {
